@@ -295,3 +295,19 @@ toUpper = map (cast . Prelude.toUpper . cast)
 export
 toLower : ByteString -> ByteString
 toLower = map (cast . Prelude.toLower . cast)
+
+--------------------------------------------------------------------------------
+--          Substrings
+--------------------------------------------------------------------------------
+
+||| Like `substr` for `String`, this extracts a substring
+||| of the given `ByteString` at the given start position
+||| and of the given length. If the `start` position is out
+||| of bounds, the empty `ByteString` is returned. If the
+||| length is too large, a substring going till the end of
+||| the original `ByteString` is returned. O(1).
+export
+substring : (start,length : Bits32) -> ByteString -> ByteString
+substring start length (BS buf o l) =
+  if start >= l then empty
+  else BS buf (o + start) (min (l - start) length)
