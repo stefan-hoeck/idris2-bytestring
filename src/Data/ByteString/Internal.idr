@@ -491,3 +491,51 @@ dropWhileEnd f bs = take (findFromEndUntil (not . f) bs) bs
 export
 break : (Bits8 -> Bool) -> ByteString -> (ByteString, ByteString)
 break p bs = let n = findIndexOrLength p bs in (take n bs, drop n bs)
+
+||| Returns the longest (possibly empty) suffix of elements which do not
+||| satisfy the predicate and the remainder of the string.
+export
+breakEnd : (Bits8 -> Bool) -> ByteString -> (ByteString, ByteString)
+breakEnd  p bs = splitAt (findFromEndUntil p bs) bs
+
+||| Returns the longest (possibly empty) prefix of elements
+||| satisfying the predicate and the remainder of the string.
+export %inline
+span : (Bits8 -> Bool) -> ByteString -> (ByteString, ByteString)
+span p = break (not . p)
+
+||| Returns the longest (possibly empty) suffix of elements
+||| satisfying the predicate and the remainder of the string.
+export
+spanEnd : (Bits8 -> Bool) -> ByteString -> (ByteString, ByteString)
+spanEnd  p bs = splitAt (findFromEndUntil (not . p) bs) bs
+
+||| Splits a 'ByteString' into components delimited by
+||| separators, where the predicate returns True for a separator element.
+||| The resulting components do not contain the separators. Two adjacent
+||| separators result in an empty component in the output. eg.
+export
+splitWith : (Bits8 -> Bool) -> ByteString -> List ByteString
+splitWith _ (BS _ _ 0)   = []
+splitWith p (BS buf o l) = go 0 o 0 Nil
+  where go :  (index         : Bits32)
+           -> (currentOffset : Bits32)
+           -> (currentLength : Bits32)
+           -> List ByteString
+           -> List ByteString
+        go ix co cl bs =
+          if ix >= l then reverse (BS buf co cl :: bs)
+          else if p (prim__getBits8 buf (ix + o)) then
+            let nbs = BS buf co cl :: bs
+             in go (assert_smaller ix (ix+1)) (co+cl+1) 0 nbs
+          else go (assert_smaller ix (ix+1)) co (cl+1) bs
+
+||| Break a `ByteString` into pieces separated by the byte
+||| argument, consuming the delimiter.
+||| 
+||| As for all splitting functions in this library, this function does
+||| not copy the substrings, it just constructs new `ByteString`s that
+||| are slices of the original.
+export
+split : Bits8 -> ByteString -> List ByteString
+split b = splitWith (b ==)
