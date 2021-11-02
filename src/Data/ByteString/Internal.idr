@@ -85,18 +85,15 @@ export
 fromList : (a -> Bits8) -> List a -> ByteString
 fromList f vs = 
   let len = cast {to = Bits32} $ length vs
-   in BS (unsafePerformIO $ go' len) 0 len
-  where go : List a -> Bits32 -> Buffer -> PrimIO Buffer
-        go []        _  buf w = MkIORes buf w
+   in unsafePerformIO $ fromPrim $ go vs 0 (prim__newBuffer len)
+  where go : List a -> Bits32 -> Buffer -> PrimIO ByteString
+        go []        ix buf w = MkIORes (BS buf 0 ix) w
         go (b :: bs) ix buf w =
           case prim__setBits8 buf ix (f b) w of
             -- this is a hack: Without this (completely useless) pattern
             -- match, the call to `prim__setBits8` is erased and ignored
             MkIORes 0 w2 => go bs (ix+1) buf w2
             MkIORes _ w2 => go bs (ix+1) buf w2
-
-        go' : Bits32 -> IO Buffer
-        go' l = fromPrim $ go vs 0 (prim__newBuffer l)
 
 ||| Converts a list of `Bits8` values to a `ByteString`.
 export %inline
@@ -180,10 +177,9 @@ null = (== 0) . length
 export
 generate : Bits32 -> (Bits32 -> Bits8) -> ByteString
 generate 0 _ = empty
-generate l f =
-  BS (unsafePerformIO $ fromPrim $ go l (prim__newBuffer l)) 0 l
-  where go : Bits32 -> Buffer -> PrimIO Buffer
-        go 0 buf w = MkIORes buf w
+generate l f = unsafePerformIO $ fromPrim $ go l (prim__newBuffer l)
+  where go : Bits32 -> Buffer -> PrimIO ByteString
+        go 0 buf w = MkIORes (BS buf 0 l) w
         go n buf w =
           let ix = n - 1
            in case prim__setBits8 buf ix (f ix) w of
@@ -208,9 +204,12 @@ fastConcat bs = case filter ((> 0) . len) bs of
   [b] => b
   bs2 =>
     let tot = foldl (\a,b => a + b.len) 0 bs2
-     in BS (unsafePerformIO $ fromPrim $ go bs2 (prim__newBuffer tot) 0) 0 tot
-      where go : List ByteString -> Buffer -> (offset : Bits32) -> PrimIO Buffer
-            go []        buf o w = MkIORes buf w
+     in unsafePerformIO $ fromPrim $ go bs2 (prim__newBuffer tot) 0
+      where go :  List ByteString
+               -> Buffer
+               -> (offset : Bits32)
+               -> PrimIO ByteString
+            go []        buf o w = MkIORes (BS buf 0 o) w
             go (BS src so sl :: bs) buf o w =
               case prim__copyData src so sl buf o w of
                 -- this is a hack: Without this (completely useless) pattern
@@ -343,3 +342,23 @@ substring : (start,length : Bits32) -> ByteString -> ByteString
 substring start length (BS buf o l) =
   if start >= l then empty
   else BS buf (o + start) (min (l - start) length)
+
+generateMaybe : Bits32 -> (Bits32 -> Maybe Bits8) -> ByteString
+generateMaybe 0 _ = empty
+generateMaybe l f = unsafePerformIO $ fromPrim $ go 0 0 (prim__newBuffer l)
+  where go : (ix,at : Bits32) -> Buffer -> PrimIO ByteString
+        go ix at buf w =
+          if ix >= l then MkIORes (BS buf 0 at) w else
+          case f ix of
+            Nothing => go (assert_smaller ix $ ix+1) at buf w
+            Just b  => case prim__setBits8 buf at b w of
+              MkIORes 0 w2 => go (assert_smaller ix $ ix+1) (at + 1) buf w2
+              MkIORes _ w2 => go (assert_smaller ix $ ix+1) (at + 1) buf w2
+
+export
+mapMaybe : (Bits8 -> Maybe Bits8) -> ByteString -> ByteString
+mapMaybe f bs = generateMaybe bs.len (\b => f $ unsafeGetBits8 b bs)
+
+export
+filter : (Bits8 -> Bool) -> ByteString -> ByteString
+filter p = mapMaybe (\b => if p b then Just b else Nothing)

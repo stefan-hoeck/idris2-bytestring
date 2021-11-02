@@ -1,6 +1,7 @@
 module Test.Main
 
 import Data.ByteString
+import Data.List
 import Data.SOP
 import Data.Vect
 import Hedgehog
@@ -128,6 +129,24 @@ prop_substring = property $ do
   fromString (substr (cast start) (cast len) str) ===
   substring start len (fromString str)
 
+reverseReverse : Property
+reverseReverse = property $ do
+  bs <- forAll bytestring
+  bs === reverse (reverse bs)
+
+fun : Bits8 -> Maybe Bits8
+fun b = if b < 128 then Just (128 - b) else Nothing
+
+prop_mapMaybe : Property
+prop_mapMaybe = property $ do
+  bs <- forAll byteList
+  mapMaybe fun (pack bs) === pack (mapMaybe fun bs)
+
+prop_filter : Property
+prop_filter = property $ do
+  bs <- forAll byteList
+  filter (< 100) (pack bs) === pack (filter (< 100) bs)
+
 main : IO ()
 main = test . pure $ MkGroup "ByteString"
   [ ("unpackPack", unpackPack)
@@ -148,4 +167,7 @@ main = test . pure $ MkGroup "ByteString"
   , ("snocLast", snocLast)
   , ("snocInit", snocInit)
   , ("prop_substring", prop_substring)
+  , ("reverseReverse", reverseReverse)
+  , ("prop_mapMaybe", prop_mapMaybe)
+  , ("prop_filter", prop_filter)
   ]
