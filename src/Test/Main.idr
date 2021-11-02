@@ -147,6 +147,57 @@ prop_filter = property $ do
   bs <- forAll byteList
   filter (< 100) (pack bs) === pack (filter (< 100) bs)
 
+prop_take : Property
+prop_take = property $ do
+  [n,bs] <- forAll $ np [nat (linear 0 30), byteList]
+  take (cast n) (pack bs) === pack (take n bs)
+
+prop_takeEnd : Property
+prop_takeEnd = property $ do
+  [n,bs] <- forAll $ np [bits32 (linear 0 30), bytestring]
+  takeEnd n bs === reverse (take n $ reverse bs)
+
+prop_drop : Property
+prop_drop = property $ do
+  [n,bs] <- forAll $ np [nat (linear 0 30), byteList]
+  drop (cast n) (pack bs) === pack (drop n bs)
+
+prop_dropEnd : Property
+prop_dropEnd = property $ do
+  [n,bs] <- forAll $ np [bits32 (linear 0 30), bytestring]
+  dropEnd n bs === reverse (drop n $ reverse bs)
+
+prop_takeWhile : Property
+prop_takeWhile = property $ do
+  bs <- forAll byteList
+  takeWhile (< 100) (pack bs) ===
+  pack (takeWhile (< 100) bs)
+
+prop_takeWhileEnd : Property
+prop_takeWhileEnd = property $ do
+  bs <- forAll bytestring
+  takeWhileEnd (< 100) bs ===
+  reverse (takeWhile (< 100) $ reverse bs)
+
+prop_dropWhileEnd : Property
+prop_dropWhileEnd = property $ do
+  bs <- forAll bytestring
+  dropWhileEnd (< 100) bs ===
+  reverse (dropWhile (< 100) $ reverse bs)
+
+prop_breakAppend : Property
+prop_breakAppend = property $ do
+  bs <- forAll bytestring
+  let (a,b) = break (< 100) bs
+  bs === (a <+> b)
+
+prop_breakFirst : Property
+prop_breakFirst = property $ do
+  bs <- forAll bytestring
+  let (a,b) = break (< 100) bs
+  assert $ all (>= 100) a
+
+
 main : IO ()
 main = test . pure $ MkGroup "ByteString"
   [ ("unpackPack", unpackPack)
@@ -170,4 +221,11 @@ main = test . pure $ MkGroup "ByteString"
   , ("reverseReverse", reverseReverse)
   , ("prop_mapMaybe", prop_mapMaybe)
   , ("prop_filter", prop_filter)
+  , ("prop_drop", prop_drop)
+  , ("prop_take", prop_take)
+  , ("prop_takeWhile", prop_takeWhile)
+  , ("prop_takeWhileEnd", prop_takeWhileEnd)
+  , ("prop_dropWhileEnd", prop_dropWhileEnd)
+  , ("prop_breakAppend", prop_breakAppend)
+  , ("prop_breakFirst", prop_breakFirst)
   ]

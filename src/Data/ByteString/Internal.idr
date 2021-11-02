@@ -187,6 +187,10 @@ generate l f = unsafePerformIO $ fromPrim $ go l (prim__newBuffer l)
                 MkIORes _ w2 => go (assert_smaller n ix) buf w2
 
 export
+replicate : Bits32 -> Bits8 -> ByteString
+replicate n = generate n . const
+
+export
 getBits8 : Bits32 -> ByteString -> Maybe Bits8
 getBits8 n bs = if bs.len > n then Just (unsafeGetBits8 n bs) else Nothing
 
@@ -310,6 +314,33 @@ reverse bs = generate bs.len (\n => unsafeGetBits8 (bs.len - 1 - n) bs)
 --          Folding
 --------------------------------------------------------------------------------
 
+||| True, if the predicate holds for all bytes in the given `ByteString`
+export
+all : (Bits8 -> Bool) -> ByteString -> Bool
+all p bs = go bs.len
+  where go : Bits32 -> Bool
+        go 0 = True
+        go n =
+          let n2 = n-1
+           in if p (unsafeGetBits8 n2 bs)
+              then go (assert_smaller n n2) else False
+
+||| True, if the predicate holds for at least one byte in the given `ByteString`
+export
+any : (Bits8 -> Bool) -> ByteString -> Bool
+any p bs = go bs.len
+  where go : Bits32 -> Bool
+        go 0 = False
+        go n =
+          let n2 = n-1
+           in if p (unsafeGetBits8 n2 bs)
+              then True else go (assert_smaller n n2)
+
+||| True, if the given `Bits8` appears in the `ByteString`.
+export %inline
+elem : Bits8 -> ByteString -> Bool
+elem b = any (b ==)
+
 export
 foldl : (a -> Bits8 -> a) -> a -> ByteString -> a
 foldl f ini bs = go 0 ini
@@ -327,9 +358,47 @@ foldr f ini bs = go bs.len ini
           let ix = n - 1
            in go (assert_smaller n ix) (f (unsafeGetBits8 ix bs) acc)
 
+||| The `findIndex` function takes a predicate and a `ByteString` and
+||| returns the index of the first element in the ByteString
+||| satisfying the predicate.
+export
+findIndex : (Bits8 -> Bool) -> ByteString -> Maybe Bits32
+findIndex p bs = go 0 bs.len
+  where go : Bits32 -> Bits32 -> Maybe Bits32
+        go n l =
+          if n >= l then Nothing
+          else if p (unsafeGetBits8 n bs) then Just n
+          else go (assert_smaller n (n+1)) l
+
+||| Return the index of the first occurence of the given
+||| byte in the `ByteString`, or `Nothing`, if the byte
+||| does not appear in the ByteString.
+export
+elemIndex : Bits8 -> ByteString -> Maybe Bits32
+elemIndex c = findIndex (c ==)
+
+export
+find : (Bits8 -> Bool) -> ByteString -> Maybe Bits8
+find p bs = (`unsafeGetBits8` bs) <$> findIndex p bs
+
 --------------------------------------------------------------------------------
 --          Substrings
 --------------------------------------------------------------------------------
+
+findIndexOrLength : (Bits8 -> Bool) -> ByteString -> Bits32
+findIndexOrLength p bs = go 0 bs.len
+  where go : Bits32 -> Bits32 -> Bits32
+        go n l = if n >= l then l
+                 else if p (unsafeGetBits8 n bs) then n
+                 else go (assert_smaller n (n+1)) l
+
+findFromEndUntil : (Bits8 -> Bool) -> ByteString -> Bits32
+findFromEndUntil p bs = go bs.len
+  where go : Bits32 -> Bits32
+        go 0 = 0
+        go n =
+          let n2 = n - 1
+           in if p (unsafeGetBits8 n2 bs) then n else go (assert_smaller n n2)
 
 ||| Like `substr` for `String`, this extracts a substring
 ||| of the given `ByteString` at the given start position
@@ -362,3 +431,63 @@ mapMaybe f bs = generateMaybe bs.len (\b => f $ unsafeGetBits8 b bs)
 export
 filter : (Bits8 -> Bool) -> ByteString -> ByteString
 filter p = mapMaybe (\b => if p b then Just b else Nothing)
+
+||| Return a `ByteString` with the first `n` values of
+||| the input string. O(1)
+export
+take : Bits32 -> ByteString -> ByteString
+take n (BS buf o l) = BS buf o (min n l)
+
+||| Return a `ByteString` with the last `n` values of
+||| the input string. O(1)
+export
+takeEnd : Bits32 -> ByteString -> ByteString
+takeEnd n (BS buf o l) =
+  let n' = min n l in BS buf (o + (l - n')) n'
+
+||| Remove the first `n` values from a `ByteString`. O(1)
+export
+drop : Bits32 -> ByteString -> ByteString
+drop n (BS buf o l) = if n >= l then empty else BS buf (o + n) (l - n)
+
+||| Remove the last `n` values from a `ByteString`. O(1)
+export
+dropEnd : Bits32 -> ByteString -> ByteString
+dropEnd n (BS buf o l) = if n >= l then empty else BS buf o (l - n) 
+
+export
+splitAt : Bits32 -> ByteString -> (ByteString, ByteString)
+splitAt 0 bs           = (empty, bs)
+splitAt n (BS buf o l) = 
+  if n >= l then (BS buf o l, empty)
+  else (BS buf o n, BS buf (o+n) (l -n))
+
+||| Extracts the longest prefix of elements satisfying the
+||| predicate.
+export
+takeWhile : (Bits8 -> Bool) -> ByteString -> ByteString
+takeWhile p bs = take (findIndexOrLength (not . p) bs) bs
+
+||| Returns the longest (possibly empty) suffix of elements
+||| satisfying the predicate.
+export
+takeWhileEnd : (Bits8 -> Bool) -> ByteString -> ByteString
+takeWhileEnd f bs = drop (findFromEndUntil (not . f) bs) bs
+
+||| Drops the longest (possibly empty) prefix of elements
+||| satisfying the predicate and returns the remainder.
+export
+dropWhile : (Bits8 -> Bool) -> ByteString -> ByteString
+dropWhile f bs = drop (findIndexOrLength (not . f) bs) bs
+
+||| Drops the longest (possibly empty) suffix of elements
+||| satisfying the predicate and returns the remainder.
+export
+dropWhileEnd : (Bits8 -> Bool) -> ByteString -> ByteString
+dropWhileEnd f bs = take (findFromEndUntil (not . f) bs) bs
+
+||| Returns the longest (possibly empty) prefix of elements which do not
+||| satisfy the predicate and the remainder of the string.
+export
+break : (Bits8 -> Bool) -> ByteString -> (ByteString, ByteString)
+break p bs = let n = findIndexOrLength p bs in (take n bs, drop n bs)
