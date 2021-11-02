@@ -18,6 +18,8 @@ byte = bits8 $ linear 0 0xff
 byteList : Gen (List Bits8)
 byteList = list (linear 0 30) byte
 
+-- we make sure to not only generate `ByteString`s with
+-- an offset of 0.
 bytestring : Gen ByteString
 bytestring = 
   let bs1         = pack <$> byteList

@@ -177,6 +177,23 @@ export %inline
 null : ByteString -> Bool
 null = (== 0) . length
 
+export
+generate : Bits32 -> (Bits32 -> Bits8) -> ByteString
+generate 0 _ = empty
+generate l f =
+  BS (unsafePerformIO $ fromPrim $ go l (prim__newBuffer l)) 0 l
+  where go : Bits32 -> Buffer -> PrimIO Buffer
+        go 0 buf w = MkIORes buf w
+        go n buf w =
+          let ix = n - 1
+           in case prim__setBits8 buf ix (f ix) w of
+                MkIORes 0 w2 => go (assert_smaller n ix) buf w2
+                MkIORes _ w2 => go (assert_smaller n ix) buf w2
+
+export
+getBits8 : Bits32 -> ByteString -> Maybe Bits8
+getBits8 n bs = if bs.len > n then Just (unsafeGetBits8 n bs) else Nothing
+
 --------------------------------------------------------------------------------
 --          Concatenating ByteStrings
 --------------------------------------------------------------------------------
@@ -272,17 +289,7 @@ unsnoc (BS buf o l) = Just (prim__getBits8 buf (o + l-1), BS buf o (l-1))
 ||| function. O(n).
 export
 map : (Bits8 -> Bits8) -> ByteString -> ByteString
-map _ (BS _ _ 0)   = empty
-map f (BS src o l) =
-  BS (unsafePerformIO $ fromPrim $ go l (prim__newBuffer l)) 0 l
-
-  where go : Bits32 -> Buffer -> PrimIO Buffer
-        go 0 buf w = MkIORes buf w
-        go n buf w =
-          let ix = n - 1
-           in case prim__setBits8 buf ix (f $ prim__getBits8 src (o + ix)) w of
-                MkIORes 0 w2 => go (assert_smaller n ix) buf w2
-                MkIORes _ w2 => go (assert_smaller n ix) buf w2
+map f bs = generate bs.len (\b => f $ unsafeGetBits8 b bs)
 
 ||| Interpreting the values stored in a `ByteString` as 8 bit characters,
 ||| convert every lower-case character to its upper-case form.
@@ -295,6 +302,31 @@ toUpper = map (cast . Prelude.toUpper . cast)
 export
 toLower : ByteString -> ByteString
 toLower = map (cast . Prelude.toLower . cast)
+
+export
+reverse : ByteString -> ByteString
+reverse bs = generate bs.len (\n => unsafeGetBits8 (bs.len - 1 - n) bs)
+
+--------------------------------------------------------------------------------
+--          Folding
+--------------------------------------------------------------------------------
+
+export
+foldl : (a -> Bits8 -> a) -> a -> ByteString -> a
+foldl f ini bs = go 0 ini
+  where go : Bits32 -> a -> a
+        go n acc = case getBits8 n bs of
+          Nothing => acc
+          Just v  => go (assert_smaller n (n+1)) (f acc v)
+
+export
+foldr : (Bits8 -> a -> a) -> a -> ByteString -> a
+foldr f ini bs = go bs.len ini
+  where go : Bits32 -> a -> a
+        go 0 acc = acc
+        go n acc =
+          let ix = n - 1
+           in go (assert_smaller n ix) (f (unsafeGetBits8 ix bs) acc)
 
 --------------------------------------------------------------------------------
 --          Substrings
