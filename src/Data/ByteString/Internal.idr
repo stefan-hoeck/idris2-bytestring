@@ -2,6 +2,8 @@ module Data.ByteString.Internal
 
 import Data.Buffer
 import Data.List
+import System.File
+import System.File.Support
 
 %default total
 
@@ -34,6 +36,13 @@ prim__setBits8 : Buffer -> (offset : Bits32) -> (val : Bits8) -> PrimIO Int
          "node:lambda:(b1,o1,length,b2,o2)=>b1.copy(b2,o2,o1,o1+length)"
 prim__copyData : (src : Buffer) -> (srcOffset, len : Bits32) ->
                  (dst : Buffer) -> (dstOffset : Bits32) -> PrimIO Int
+
+%foreign support "idris2_readBufferData"
+         "node:lambda:(f,b,l,m) => require('fs').readSync(f.fd,b,l,m)"
+prim__readBufferData :  FilePtr
+                     -> Buffer
+                     -> (offset : Bits32)
+                     -> (maxbytes : Bits32) -> PrimIO Int
 
 --------------------------------------------------------------------------------
 --          ByteString
@@ -539,3 +548,20 @@ splitWith p (BS buf o l) = go 0 o 0 Nil
 export
 split : Bits8 -> ByteString -> List ByteString
 split b = splitWith (b ==)
+
+--------------------------------------------------------------------------------
+--          Reading and Writing from and to Files
+--------------------------------------------------------------------------------
+
+export
+readChunk : HasIO io => Bits32 -> File -> io (Either FileError ByteString)
+readChunk max (FHandle h) = do
+  Just buf <- newBuffer (cast max) | Nothing => pure (Left FileReadError)
+  read     <- primIO (prim__readBufferData h buf 0 max)
+  if read >= 0
+     then pure (Right $ BS buf 0 (cast read))
+     else pure (Left FileReadError)
+
+export
+write : HasIO io => File -> ByteString -> io (Either FileError ())
+write h (BS buf o l) = writeBufferData h buf (cast o) (cast l)
