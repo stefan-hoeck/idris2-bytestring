@@ -556,7 +556,7 @@ split b = splitWith (b ==)
 export
 readChunk : HasIO io => Bits32 -> File -> io (Either FileError ByteString)
 readChunk max (FHandle h) = do
-  Just buf <- newBuffer (cast max) | Nothing => pure (Left FileReadError)
+  let buf = prim__newBuffer max
   read     <- primIO (prim__readBufferData h buf 0 max)
   if read >= 0
      then pure (Right $ BS buf 0 (cast read))
