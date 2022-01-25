@@ -563,5 +563,5 @@ readChunk max (FHandle h) = do
      else pure (Left FileReadError)
 
 export
-write : HasIO io => File -> ByteString -> io (Either FileError ())
+write : HasIO io => File -> ByteString -> io (Either (FileError,Int) ())
 write h (BS buf o l) = writeBufferData h buf (cast o) (cast l)
