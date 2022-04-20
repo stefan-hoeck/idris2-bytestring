@@ -37,7 +37,7 @@ prim__setBits8 : Buffer -> (offset : Bits32) -> (val : Bits8) -> PrimIO Int
 prim__copyData : (src : Buffer) -> (srcOffset, len : Bits32) ->
                  (dst : Buffer) -> (dstOffset : Bits32) -> PrimIO Int
 
-%foreign support "idris2_readBufferData"
+%foreign supportC "idris2_readBufferData"
          "node:lambda:(f,b,l,m) => require('fs').readSync(f.fd,b,l,m)"
 prim__readBufferData :  FilePtr
                      -> Buffer
