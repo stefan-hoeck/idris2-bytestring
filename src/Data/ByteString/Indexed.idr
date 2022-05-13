@@ -110,6 +110,12 @@ ltPlusSuccRight (S x) m     (S z) (LTESucc p) =
 0 ltePlusSuccRight : {k,m,n : Nat} -> LTE (k + S m) n -> LTE (S $ k + m) n
 ltePlusSuccRight p = rewrite plusSuccRightSucc k m in p
 
+0 plusMinus : (m,n : Nat) -> LTE m n -> m + (n `minus` m) === n
+plusMinus 0 0         _           = Refl
+plusMinus 0 (S k)     x           = Refl
+plusMinus (S k) 0     x           = absurd x
+plusMinus (S k) (S j) (LTESucc p) = cong S $ plusMinus k j p
+
 %hint
 0 refl : LTE n n
 refl = reflexive
@@ -286,6 +292,22 @@ generate n f =
           case prim__setBits8 buf (cast k) (f $ toIndex k) w of
             MkIORes 0 w2 => go k buf w2
             MkIORes _ w2 => go k buf w2
+
+export
+generateMaybe : (n : Nat) -> (Index n -> Maybe Bits8) -> (k ** ByteString k)
+generateMaybe n f =
+  unsafePerformIO $ fromPrim $ go 0 0 (prim__newBuffer $ cast n)
+  where go :  (m    : Nat)
+           -> (0 lt : LTE m n)
+           => (pos  : Nat)
+           -> Buffer
+           -> PrimIO (k ** ByteString k)
+        go 0     pos buf w = MkIORes (pos ** BS buf 0) w
+        go (S k) pos buf w = case f (fromEnd $ toIndex k) of
+          Nothing => go k pos buf w
+          Just b  => case prim__setBits8 buf (cast pos) b w of
+            MkIORes 0 w2 => go k (S pos) buf w2
+            MkIORes _ w2 => go k (S pos) buf w2
 
 export
 replicate : (n : Nat) -> Bits8 -> ByteString n
@@ -473,171 +495,236 @@ findIndexOrLength :  {n : _}
 findIndexOrLength p bs = go n
   where go : (k : Nat) -> (0 lt : LTE k n) => SubLength n
         go 0     = sublength n
-        go (S k) = 
-          let x = fromEnd (toIndex k)
-           in if p (index x bs) then fromIndex x else go k
+        go (S k) = let x = fromEnd (toIndex k)
+                    in if p (index x bs) then fromIndex x else go k
 
--- findFromEndUntil : (Bits8 -> Bool) -> ByteString -> Bits32
--- findFromEndUntil p bs = go bs.len
---   where go : Bits32 -> Bits32
---         go 0 = 0
---         go n =
---           let n2 = n - 1
---            in if p (unsafeGetBits8 n2 bs) then n else go (assert_smaller n n2)
--- 
--- ||| Like `substr` for `String`, this extracts a substring
--- ||| of the given `ByteString` at the given start position
--- ||| and of the given length. If the `start` position is out
--- ||| of bounds, the empty `ByteString` is returned. If the
--- ||| length is too large, a substring going till the end of
--- ||| the original `ByteString` is returned. O(1).
--- export
--- substring : (start,length : Bits32) -> ByteString -> ByteString
--- substring start length (BS buf o l) =
---   if start >= l then empty
---   else BS buf (o + start) (min (l - start) length)
--- 
--- generateMaybe : Bits32 -> (Bits32 -> Maybe Bits8) -> ByteString
--- generateMaybe 0 _ = empty
--- generateMaybe l f = unsafePerformIO $ fromPrim $ go 0 0 (prim__newBuffer l)
---   where go : (ix,at : Bits32) -> Buffer -> PrimIO ByteString
---         go ix at buf w =
---           if ix >= l then MkIORes (BS buf 0 at) w else
---           case f ix of
---             Nothing => go (assert_smaller ix $ ix+1) at buf w
---             Just b  => case prim__setBits8 buf at b w of
---               MkIORes 0 w2 => go (assert_smaller ix $ ix+1) (at + 1) buf w2
---               MkIORes _ w2 => go (assert_smaller ix $ ix+1) (at + 1) buf w2
--- 
--- export
--- mapMaybe : (Bits8 -> Maybe Bits8) -> ByteString -> ByteString
--- mapMaybe f bs = generateMaybe bs.len (\b => f $ unsafeGetBits8 b bs)
--- 
--- export
--- filter : (Bits8 -> Bool) -> ByteString -> ByteString
--- filter p = mapMaybe (\b => if p b then Just b else Nothing)
--- 
--- ||| Return a `ByteString` with the first `n` values of
--- ||| the input string. O(1)
--- export
--- take : Bits32 -> ByteString -> ByteString
--- take n (BS buf o l) = BS buf o (min n l)
--- 
--- ||| Return a `ByteString` with the last `n` values of
--- ||| the input string. O(1)
--- export
--- takeEnd : Bits32 -> ByteString -> ByteString
--- takeEnd n (BS buf o l) =
---   let n' = min n l in BS buf (o + (l - n')) n'
--- 
--- ||| Remove the first `n` values from a `ByteString`. O(1)
--- export
--- drop : Bits32 -> ByteString -> ByteString
--- drop n (BS buf o l) = if n >= l then empty else BS buf (o + n) (l - n)
--- 
--- ||| Remove the last `n` values from a `ByteString`. O(1)
--- export
--- dropEnd : Bits32 -> ByteString -> ByteString
--- dropEnd n (BS buf o l) = if n >= l then empty else BS buf o (l - n) 
--- 
--- export
--- splitAt : Bits32 -> ByteString -> (ByteString, ByteString)
--- splitAt 0 bs           = (empty, bs)
--- splitAt n (BS buf o l) = 
---   if n >= l then (BS buf o l, empty)
---   else (BS buf o n, BS buf (o+n) (l -n))
--- 
--- ||| Extracts the longest prefix of elements satisfying the
--- ||| predicate.
--- export
--- takeWhile : (Bits8 -> Bool) -> ByteString -> ByteString
--- takeWhile p bs = take (findIndexOrLength (not . p) bs) bs
--- 
--- ||| Returns the longest (possibly empty) suffix of elements
--- ||| satisfying the predicate.
--- export
--- takeWhileEnd : (Bits8 -> Bool) -> ByteString -> ByteString
--- takeWhileEnd f bs = drop (findFromEndUntil (not . f) bs) bs
--- 
--- ||| Drops the longest (possibly empty) prefix of elements
--- ||| satisfying the predicate and returns the remainder.
--- export
--- dropWhile : (Bits8 -> Bool) -> ByteString -> ByteString
--- dropWhile f bs = drop (findIndexOrLength (not . f) bs) bs
--- 
--- ||| Drops the longest (possibly empty) suffix of elements
--- ||| satisfying the predicate and returns the remainder.
--- export
--- dropWhileEnd : (Bits8 -> Bool) -> ByteString -> ByteString
--- dropWhileEnd f bs = take (findFromEndUntil (not . f) bs) bs
--- 
--- ||| Returns the longest (possibly empty) prefix of elements which do not
--- ||| satisfy the predicate and the remainder of the string.
--- export
--- break : (Bits8 -> Bool) -> ByteString -> (ByteString, ByteString)
--- break p bs = let n = findIndexOrLength p bs in (take n bs, drop n bs)
--- 
--- ||| Returns the longest (possibly empty) suffix of elements which do not
--- ||| satisfy the predicate and the remainder of the string.
--- export
--- breakEnd : (Bits8 -> Bool) -> ByteString -> (ByteString, ByteString)
--- breakEnd  p bs = splitAt (findFromEndUntil p bs) bs
--- 
--- ||| Returns the longest (possibly empty) prefix of elements
--- ||| satisfying the predicate and the remainder of the string.
--- export %inline
--- span : (Bits8 -> Bool) -> ByteString -> (ByteString, ByteString)
--- span p = break (not . p)
--- 
--- ||| Returns the longest (possibly empty) suffix of elements
--- ||| satisfying the predicate and the remainder of the string.
--- export
--- spanEnd : (Bits8 -> Bool) -> ByteString -> (ByteString, ByteString)
--- spanEnd  p bs = splitAt (findFromEndUntil (not . p) bs) bs
--- 
--- ||| Splits a 'ByteString' into components delimited by
--- ||| separators, where the predicate returns True for a separator element.
--- ||| The resulting components do not contain the separators. Two adjacent
--- ||| separators result in an empty component in the output. eg.
--- export
--- splitWith : (Bits8 -> Bool) -> ByteString -> List ByteString
--- splitWith _ (BS _ _ 0)   = []
--- splitWith p (BS buf o l) = go 0 o 0 Nil
---   where go :  (index         : Bits32)
---            -> (currentOffset : Bits32)
---            -> (currentLength : Bits32)
---            -> List ByteString
---            -> List ByteString
---         go ix co cl bs =
---           if ix >= l then reverse (BS buf co cl :: bs)
---           else if p (prim__getBits8 buf (ix + o)) then
---             let nbs = BS buf co cl :: bs
---              in go (assert_smaller ix (ix+1)) (co+cl+1) 0 nbs
---           else go (assert_smaller ix (ix+1)) co (cl+1) bs
--- 
--- ||| Break a `ByteString` into pieces separated by the byte
--- ||| argument, consuming the delimiter.
--- ||| 
--- ||| As for all splitting functions in this library, this function does
--- ||| not copy the substrings, it just constructs new `ByteString`s that
--- ||| are slices of the original.
--- export
--- split : Bits8 -> ByteString -> List ByteString
--- split b = splitWith (b ==)
--- 
--- --------------------------------------------------------------------------------
--- --          Reading and Writing from and to Files
--- --------------------------------------------------------------------------------
--- 
--- export
--- readChunk : HasIO io => Bits32 -> File -> io (Either FileError ByteString)
--- readChunk max (FHandle h) = do
---   let buf = prim__newBuffer max
---   read     <- primIO (prim__readBufferData h buf 0 max)
---   if read >= 0
---      then pure (Right $ BS buf 0 (cast read))
---      else pure (Left FileReadError)
--- 
--- export
--- write : HasIO io => File -> ByteString -> io (Either (FileError,Int) ())
--- write h (BS buf o l) = writeBufferData h buf (cast o) (cast l)
+findFromEndUntil : {n : _} -> (Bits8 -> Bool) -> ByteString n -> SubLength n
+findFromEndUntil p bs = go n
+  where go : (k : Nat) -> (0 lt : LTE k n) => SubLength n
+        go 0     = Element 0 LTEZero
+        go (S k) = if p (getByte k bs) then (Element (S k) lt) else go k
+
+||| Like `substr` for `String`, this extracts a substring
+||| of the given `ByteString` at the given start position
+||| and of the given length. If the `start` position is out
+||| of bounds, the empty `ByteString` is returned. If the
+||| length is too large, a substring going till the end of
+||| the original `ByteString` is returned. O(1).
+export
+substring :  (start,length : Nat)
+          -> ByteString n
+          -> (0 inBounds : LTE (start + length) n)
+          => ByteString length
+substring start _ (BS buf o) = BS buf (o + start)
+
+export
+mapMaybe :  {n : _}
+         -> (Bits8 -> Maybe Bits8)
+         -> ByteString n
+         -> (k ** ByteString k)
+mapMaybe f bs = generateMaybe n (\x => f $ index x bs)
+
+export
+filter :  {n : _}
+       -> (Bits8 -> Bool)
+       -> ByteString n
+       -> (k ** ByteString k)
+filter p = mapMaybe (\b => if p b then Just b else Nothing)
+
+||| Return a `ByteString` with the first `n` values of
+||| the input string. O(1)
+export
+take : (0 k : Nat) -> (0 lt : LTE k n) => ByteString n -> ByteString k
+take _ (BS buf o) = BS buf o
+
+||| Return a `ByteString` with the last `n` values of
+||| the input string. O(1)
+export
+takeEnd :  {n : _}
+        -> (k : Nat)
+        -> (0 lt : LTE k n)
+        => ByteString n
+        -> ByteString k
+takeEnd k (BS buf o) = BS buf ((o + n) `minus` k)
+
+||| Remove the first `n` values from a `ByteString`. O(1)
+export
+drop :  (k : Nat)
+     -> (0 lt : LTE k n)
+     => ByteString n
+     -> ByteString (n `minus` k)
+drop n (BS buf o) = BS buf (o + n)
+
+||| Remove the last `n` values from a `ByteString`. O(1)
+export
+dropEnd :  (0 k : Nat)
+        -> (0 lt : LTE k n)
+        => ByteString n
+        -> ByteString (n `minus` k)
+dropEnd _ (BS buf o) = BS buf o
+
+export
+splitAt :  {n : _}
+        -> (k : Nat)
+        -> (0 lte : LTE k n)
+        => ByteString n
+        -> (ByteString k, ByteString (n `minus` k))
+splitAt k bs = (take k bs, drop k bs)
+
+||| Extracts the longest prefix of elements satisfying the
+||| predicate.
+export
+takeWhile : {n : _} -> (Bits8 -> Bool) -> ByteString n -> (k ** ByteString k)
+takeWhile p bs = 
+  let Element k _ = findIndexOrLength (not . p) bs
+   in (k ** take k bs)
+
+||| Returns the longest (possibly empty) suffix of elements
+||| satisfying the predicate.
+export
+takeWhileEnd :  {n : _}
+             -> (Bits8 -> Bool)
+             -> ByteString n
+             -> (k ** ByteString k)
+takeWhileEnd f bs =
+  let Element k _ = findFromEndUntil (not . f) bs
+   in (_ ** drop k bs)
+
+||| Drops the longest (possibly empty) prefix of elements
+||| satisfying the predicate and returns the remainder.
+export
+dropWhile :  {n : _}
+          -> (Bits8 -> Bool)
+          -> ByteString n
+          -> (k ** ByteString k)
+dropWhile f bs =
+  let Element k _ = findIndexOrLength (not . f) bs
+   in (_ ** drop k bs)
+
+||| Drops the longest (possibly empty) suffix of elements
+||| satisfying the predicate and returns the remainder.
+export
+dropWhileEnd :  {n : _}
+             -> (Bits8 -> Bool)
+             -> ByteString n
+             -> (k ** ByteString k)
+dropWhileEnd f bs =
+  let Element k _ = findFromEndUntil (not . f) bs
+   in (k ** take k bs)
+
+public export
+record BreakRes (n : Nat) where
+  constructor MkBreakRes
+  lenFst : Nat
+  lenSnd : Nat
+  fst    : ByteString lenFst
+  snd    : ByteString lenSnd
+  0 prf  : lenFst + lenSnd === n
+
+||| Returns the longest (possibly empty) prefix of elements which do not
+||| satisfy the predicate and the remainder of the string.
+export
+break :  {n : _}
+      -> (Bits8 -> Bool)
+      -> ByteString n
+      -> BreakRes n
+break p bs =
+  let Element k _ = findIndexOrLength p bs
+      bs1 = take k bs
+      bs2 = drop k bs
+   in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinus k n %search)
+
+||| Returns the longest (possibly empty) suffix of elements which do not
+||| satisfy the predicate and the remainder of the string.
+export
+breakEnd :  {n : _}
+         -> (Bits8 -> Bool)
+         -> ByteString n
+         -> BreakRes n
+breakEnd  p bs =
+  let Element k _ = findFromEndUntil p bs
+      bs1 = take k bs
+      bs2 = drop k bs
+   in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinus k n %search)
+
+||| Returns the longest (possibly empty) prefix of elements
+||| satisfying the predicate and the remainder of the string.
+export %inline
+span :  {n : _}
+     -> (Bits8 -> Bool)
+     -> ByteString n
+     -> BreakRes n
+span p = break (not . p)
+
+||| Returns the longest (possibly empty) suffix of elements
+||| satisfying the predicate and the remainder of the string.
+export
+spanEnd :  {n : _}
+        -> (Bits8 -> Bool)
+        -> ByteString n
+        -> BreakRes n
+spanEnd p bs =
+  let Element k _ = findFromEndUntil (not . p) bs
+      bs1 = take k bs
+      bs2 = drop k bs
+   in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinus k n %search)
+
+0 splitWithLemma1 : (k,m,n : Nat) -> k + m === n -> LTE m n
+
+||| Splits a 'ByteString' into components delimited by
+||| separators, where the predicate returns True for a separator element.
+||| The resulting components do not contain the separators. Two adjacent
+||| separators result in an empty component in the output. eg.
+export
+splitWith :  {n : _} 
+          -> (Bits8 -> Bool)
+          -> ByteString n
+          -> List (k ** ByteString k)
+splitWith p bs = go n 0 0 (plusZeroRightNeutral n) Lin
+  where go :  (x,o,l : Nat)
+           -> (0 prf : x + (o + l) === n)
+           -> (0 lt  : LTE x n)
+           => SnocList (k ** ByteString k)
+           -> List (k ** ByteString k)
+        go 0     o l prf sb = 
+          let 0 lemma = splitWithLemma1 0 (o + l) n prf
+           in sb <>> [(_ ** substring o l bs)]
+        go (S k) o l prf sb = case p (getByteFromEnd k bs) of
+          False => go k o       (S l) ?prf2 sb
+          True  => 
+            let 0 lemma = splitWithLemma1 (S k) (o + l) n prf
+             in go k (o + l) 0     ?prf3 (sb :< (_ ** substring o l bs))
+
+||| Break a `ByteString` into pieces separated by the byte
+||| argument, consuming the delimiter.
+||| 
+||| As for all splitting functions in this library, this function does
+||| not copy the substrings, it just constructs new `ByteString`s that
+||| are slices of the original.
+export
+split : {n : _} -> Bits8 -> ByteString n -> List (k ** ByteString k)
+split b = splitWith (b ==)
+
+--------------------------------------------------------------------------------
+--          Reading and Writing from and to Files
+--------------------------------------------------------------------------------
+
+export
+readChunk :  HasIO io
+          => Bits32
+          -> File
+          -> io (Either FileError (k ** ByteString k))
+readChunk max (FHandle h) = do
+  let buf = prim__newBuffer max
+  read     <- primIO (prim__readBufferData h buf 0 max)
+  if read >= 0
+     then pure (Right $ (cast read ** BS buf 0))
+     else pure (Left FileReadError)
+
+export
+write :  {n : _}
+      -> HasIO io
+      => File
+      -> ByteString n
+      -> io (Either (FileError,Int) ())
+write h (BS buf o) = writeBufferData h buf (cast o) (cast n)
