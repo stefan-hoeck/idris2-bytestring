@@ -1,9 +1,12 @@
 package bytestring
 version    = 0.0.1
-authors    = "Stefan Höck"
+authors    = "stefan-hoeck"
+brief      = "Immutable bytevectors for Idris2"
 depends    = base    >= 0.5.1
+           , prim
 
 modules    = Data.ByteString
+           , Data.ByteString.Indexed
            , Data.ByteString.Internal
 
 sourcedir  = "src"
