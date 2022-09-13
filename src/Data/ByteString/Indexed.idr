@@ -177,7 +177,7 @@ head = getByte 0
 ||| Drop the first `Bits8` from a `ByteString`. O(1).
 export
 tail : ByteString (S n) -> ByteString n
-tail (BS buf o p) = BS buf (1 + o) (ltePlusSuccRight p)
+tail (BS buf o p) = BS buf (S o) (ltePlusSuccRight p)
 
 ||| Split the first `Bits8` from a `ByteString`. O(1).
 export

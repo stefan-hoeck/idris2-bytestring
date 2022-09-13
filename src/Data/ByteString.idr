@@ -15,7 +15,7 @@ import System.File
 
 ||| An immutable string of raw bytes. For an length-indexed version,
 ||| see module `Data.ByteString.Indexed`.
-export
+public export
 record ByteString where
   constructor BS
   size : Nat
