@@ -1,7 +1,9 @@
 module Test.Main
 
+import Data.Buffer.Indexed
 import Data.ByteString
 import Data.List
+import Data.Maybe
 import Data.SOP
 import Data.Vect
 import Hedgehog
@@ -10,8 +12,8 @@ import Hedgehog
 --          Generator
 --------------------------------------------------------------------------------
 
-smallBits32 : Gen Bits32
-smallBits32 = bits32 (linear 0 10)
+smallNat : Gen Nat
+smallNat = nat (linear 0 10)
 
 byte : Gen Bits8
 byte = bits8 $ linear 0 0xff
@@ -22,9 +24,9 @@ byteList = list (linear 0 30) byte
 -- we make sure to not only generate `ByteString`s with
 -- an offset of 0.
 bytestring : Gen ByteString
-bytestring = 
-  let bs1         = pack <$> byteList
-      bs2         = [| substring smallBits32 smallBits32 bs1 |]
+bytestring =
+  let bs1 := pack <$> byteList
+      bs2 := [| substring smallNat smallNat bs1 |]
    in choice [bs1, bs2]
 
 latinString : Gen String
@@ -123,7 +125,7 @@ snocInit = property $ do
 
 prop_substring : Property
 prop_substring = property $ do
-  [start,len,str] <- forAll $ np [smallBits32,smallBits32,latinString]
+  [start,len,str] <- forAll $ np [smallNat,smallNat,latinString]
   let ss = substring start len (fromString str)
 
   fromString (substr (cast start) (cast len) str) ===
@@ -137,9 +139,15 @@ reverseReverse = property $ do
 fun : Bits8 -> Maybe Bits8
 fun b = if b < 128 then Just (128 - b) else Nothing
 
+prop_mapMaybeId : Property
+prop_mapMaybeId = property $ do
+  bs <- forAll byteList
+  mapMaybe Just (pack bs) === pack bs
+
 prop_mapMaybe : Property
 prop_mapMaybe = property $ do
   bs <- forAll byteList
+  footnote "pack bs = \{show $ pack bs}"
   mapMaybe fun (pack bs) === pack (mapMaybe fun bs)
 
 prop_filter : Property
@@ -154,7 +162,7 @@ prop_take = property $ do
 
 prop_takeEnd : Property
 prop_takeEnd = property $ do
-  [n,bs] <- forAll $ np [bits32 (linear 0 30), bytestring]
+  [n,bs] <- forAll $ np [nat (linear 0 30), bytestring]
   takeEnd n bs === reverse (take n $ reverse bs)
 
 prop_drop : Property
@@ -164,7 +172,7 @@ prop_drop = property $ do
 
 prop_dropEnd : Property
 prop_dropEnd = property $ do
-  [n,bs] <- forAll $ np [bits32 (linear 0 30), bytestring]
+  [n,bs] <- forAll $ np [nat (linear 0 30), bytestring]
   dropEnd n bs === reverse (drop n $ reverse bs)
 
 prop_takeWhile : Property
@@ -219,6 +227,7 @@ main = test . pure $ MkGroup "ByteString"
   , ("snocInit", snocInit)
   , ("prop_substring", prop_substring)
   , ("reverseReverse", reverseReverse)
+  , ("prop_mapMaybeId", prop_mapMaybeId)
   , ("prop_mapMaybe", prop_mapMaybe)
   , ("prop_filter", prop_filter)
   , ("prop_drop", prop_drop)

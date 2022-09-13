@@ -2,8 +2,14 @@ package bytestring
 version    = 0.0.1
 authors    = "Stefan Höck"
 depends    = base    >= 0.5.1
+           , prim
 
-modules    = Data.ByteString
-           , Data.ByteString.Internal
+brief      = "Immutable strings of raw bytes"
+
+modules    = Data.Buffer.Index
+           , Data.Buffer.Indexed
+           , Data.ByteString
+           , Data.ByteString.Indexed
+           , Data.Nat.BSExtra
 
 sourcedir  = "src"

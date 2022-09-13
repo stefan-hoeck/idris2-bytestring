@@ -1,0 +1,9 @@
+[custom.all.bytestring]
+type   = "local"
+path   = "."
+ipkg   = "bytestring.ipkg"
+
+[custom.all.bytestring-test]
+type   = "local"
+path   = "test"
+ipkg   = "test.ipkg"
