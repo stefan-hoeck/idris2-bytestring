@@ -5,6 +5,7 @@ import Data.Nat.BSExtra
 import Data.Buffer.Index
 import Data.Buffer.Indexed
 import Data.ByteString.Indexed as I
+import System.File
 
 %default total
 
@@ -116,7 +117,7 @@ replicate n = generate n . const
 ||| faster than `concat`, or `concatMap` for large `ByteString`s.
 export
 fastConcat :  (bs : List ByteString) -> ByteString
-fastConcat bs = 
+fastConcat bs =
   let ps := map (\(BS k bs) => (k ** bs)) bs
    in BS (totLength ps) (fastConcat ps)
 
@@ -316,25 +317,25 @@ splitAt k (BS n bs) = case tryLTE k n of
 ||| predicate.
 export
 takeWhile : (Bits8 -> Bool) -> ByteString -> ByteString
-takeWhile p (BS n bs) = let (k ** bs2) := takeWhile p bs in BS k bs2 
+takeWhile p (BS n bs) = let (k ** bs2) := takeWhile p bs in BS k bs2
 
 ||| Returns the longest (possibly empty) suffix of elements
 ||| satisfying the predicate.
 export
 takeWhileEnd : (Bits8 -> Bool) -> ByteString -> ByteString
-takeWhileEnd p (BS n bs) = let (k ** bs2) := takeWhileEnd p bs in BS k bs2 
+takeWhileEnd p (BS n bs) = let (k ** bs2) := takeWhileEnd p bs in BS k bs2
 
 ||| Drops the longest (possibly empty) prefix of elements
 ||| satisfying the predicate and returns the remainder.
 export
 dropWhile : (Bits8 -> Bool) -> ByteString -> ByteString
-dropWhile p (BS n bs) = let (k ** bs2) := dropWhile p bs in BS k bs2 
+dropWhile p (BS n bs) = let (k ** bs2) := dropWhile p bs in BS k bs2
 
 ||| Drops the longest (possibly empty) suffix of elements
 ||| satisfying the predicate and returns the remainder.
 export
 dropWhileEnd : (Bits8 -> Bool) -> ByteString -> ByteString
-dropWhileEnd p (BS n bs) = let (k ** bs2) := dropWhileEnd p bs in BS k bs2 
+dropWhileEnd p (BS n bs) = let (k ** bs2) := dropWhileEnd p bs in BS k bs2
 
 ||| Returns the longest (possibly empty) prefix of elements which do not
 ||| satisfy the predicate and the remainder of the string.
@@ -376,7 +377,7 @@ splitWith p (BS n bs) = map (\(k ** bsk) => BS k bsk) $ splitWith p bs
 
 ||| Break a `ByteString` into pieces separated by the byte
 ||| argument, consuming the delimiter.
-||| 
+|||
 ||| As for all splitting functions in this library, this function does
 ||| not copy the substrings, it just constructs new `ByteString`s that
 ||| are slices of the original.
@@ -388,22 +389,15 @@ split b = splitWith (b ==)
 --          Reading and Writing from and to Files
 --------------------------------------------------------------------------------
 
--- export
--- readChunk :  HasIO io
---           => Bits32
---           -> File
---           -> io (Either FileError (k ** ByteString k))
--- readChunk max (FHandle h) = do
---   let buf = prim__newBuffer max
---   read     <- primIO (prim__readBufferData h buf 0 max)
---   if read >= 0
---      then pure (Right $ (cast read ** BS buf 0))
---      else pure (Left FileReadError)
--- 
--- export
--- write :  {n : _}
---       -> HasIO io
---       => File
---       -> ByteString n
---       -> io (Either (FileError,Int) ())
--- write h (BS buf o) = writeBufferData h buf (cast o) (cast n)
+export
+readByteString : HasIO io => Nat -> File -> io (Either FileError ByteString)
+readByteString max f = do
+  Right (k ** bs) <- I.readByteString max f | Left err => pure (Left err)
+  pure $ Right (BS k bs)
+
+export
+writeByteString :  HasIO io
+                => File
+                -> ByteString
+                -> io (Either (FileError,Int) ())
+writeByteString h (BS n bs) = writeByteString h bs

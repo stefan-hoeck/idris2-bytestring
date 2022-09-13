@@ -126,22 +126,21 @@ generateMaybe n f = unsafe $ go n 0 (prim__newBuf $ cast n)
           Just b  => let MkIORes () w2 := writeByte (cast pos) b buf w
                       in go k (pos + 1) buf w2
 
--- export
--- readBuffer :  HasIO io
---            => Bits32
---            -> File
---            -> io (Either FileError (k ** Buffer k))
--- readBuffer max f = do
---   buf   = fromPrim $ prim__newBuffer (cast max)
---   read     <- primIO (prim__readBufferData h buf 0 max)
---   if read >= 0
---      then pure (Right $ (cast read ** BS buf 0))
---      else pure (Left FileReadError)
--- 
--- export
--- write :  {n : _}
---       -> HasIO io
---       => File
---       -> ByteString n
---       -> io (Either (FileError,Int) ())
--- write h (BS buf o) = writeBufferData h buf (cast o) (cast n)
+export
+readBuffer :  HasIO io => Nat -> File -> io (Either FileError (k ** IBuffer k))
+readBuffer max f =
+  let buf  := prim__newBuf (cast max)
+   in do
+    Right read <- readBufferData f buf 0 (cast max)
+      | Left err => pure (Left err)
+    if read >= 0
+       then pure (Right (cast read ** Buf buf))
+       else pure (Left FileReadError)
+
+export
+writeBuffer : HasIO io
+            => File
+            -> (offset,size : Nat)
+            -> IBuffer n
+            -> io (Either (FileError,Int) ())
+writeBuffer h o s (Buf buf) = writeBufferData h buf (cast o) (cast s)

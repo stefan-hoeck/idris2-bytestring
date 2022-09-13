@@ -149,7 +149,7 @@ fastConcat bs = BS (concatMany bs index) 0 refl
 ||| Concatenate two `ByteString`s. O(n + m).
 export %inline
 append : {m,n : _} -> ByteString m  -> ByteString n -> ByteString (m + n)
-append b1 b2 = 
+append b1 b2 =
   let 0 pp := solve [m,n]
                 (m .+ (n .+ 0))
                 (m .+. n)
@@ -403,7 +403,7 @@ splitAt k bs = (take k bs, drop k bs)
 ||| predicate.
 export
 takeWhile : {n : _} -> (Bits8 -> Bool) -> ByteString n -> (k ** ByteString k)
-takeWhile p bs = 
+takeWhile p bs =
   let Element k _ = findIndexOrLength (not . p) bs
    in (k ** take k bs)
 
@@ -512,7 +512,7 @@ splitWithLemma (S k) m     0     p impossible
 ||| The resulting components do not contain the separators. Two adjacent
 ||| separators result in an empty component in the output. eg.
 export
-splitWith :  {n : _} 
+splitWith :  {n : _}
           -> (Bits8 -> Bool)
           -> ByteString n
           -> List (k ** ByteString k)
@@ -522,16 +522,16 @@ splitWith p bs = go n 0 0 (plusZeroRightNeutral n) Lin
            -> (0 lt  : LTE x n)
            => SnocList (k ** ByteString k)
            -> List (k ** ByteString k)
-        go 0     o l prf sb = 
+        go 0     o l prf sb =
           let 0 lemma := splitWithLemma 0 (o + l) n prf
            in sb <>> [(_ ** substring o l bs)]
         go (S k) o l prf sb = case p (getByteFromEnd k bs) of
-          False => 
+          False =>
             let 0 pp := solve [o, l, k]
                          (k .+ (o .+ (1 +. l)))
                          (1 + (k .+ (o .+. l)))
              in go k o (S l) (trans pp prf) sb
-          True  => 
+          True  =>
             let 0 lemma := splitWithLemma (S k) (o + l) n prf
                 0 pp := solve [o, l, k]
                          (k .+ ((o .+ (1 +. l)) + 0))
@@ -540,7 +540,7 @@ splitWith p bs = go n 0 0 (plusZeroRightNeutral n) Lin
 
 ||| Break a `ByteString` into pieces separated by the byte
 ||| argument, consuming the delimiter.
-||| 
+|||
 ||| As for all splitting functions in this library, this function does
 ||| not copy the substrings, it just constructs new `ByteString`s that
 ||| are slices of the original.
@@ -548,26 +548,23 @@ export
 split : {n : _} -> Bits8 -> ByteString n -> List (k ** ByteString k)
 split b = splitWith (b ==)
 
--- --------------------------------------------------------------------------------
--- --          Reading and Writing from and to Files
--- --------------------------------------------------------------------------------
--- 
--- export
--- readChunk :  HasIO io
---           => Bits32
---           -> File
---           -> io (Either FileError (k ** ByteString k))
--- readChunk max (FHandle h) = do
---   let buf = prim__newBuffer max
---   read     <- primIO (prim__readBufferData h buf 0 max)
---   if read >= 0
---      then pure (Right $ (cast read ** BS buf 0))
---      else pure (Left FileReadError)
--- 
--- export
--- write :  {n : _}
---       -> HasIO io
---       => File
---       -> ByteString n
---       -> io (Either (FileError,Int) ())
--- write h (BS buf o) = writeBufferData h buf (cast o) (cast n)
+--------------------------------------------------------------------------------
+--          Reading and Writing from and to Files
+--------------------------------------------------------------------------------
+
+export
+readByteString :  HasIO io
+               => Nat
+               -> File
+               -> io (Either FileError (k ** ByteString k))
+readByteString max f = do
+  Right (k ** buf) <- readBuffer max f | Left err => pure (Left err)
+  pure $ Right (k ** BS buf 0 refl)
+
+export
+writeByteString :  {n : _}
+                -> HasIO io
+                => File
+                -> ByteString n
+                -> io (Either (FileError,Int) ())
+writeByteString h (BS buf o _) = writeBuffer h o n buf
