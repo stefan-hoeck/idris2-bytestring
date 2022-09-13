@@ -1,0 +1,14 @@
+package bytestring-test
+
+authors    = "stefan-hoeck"
+version    = 0.0.1
+readme     = "README.md"
+license    = "BSD-3 Clause"
+
+main       = Test.Main
+executable = "bytestring-test"
+
+sourcedir  = "src"
+
+depends    = bytestring
+           , hedgehog

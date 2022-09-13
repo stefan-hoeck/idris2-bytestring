@@ -2,36 +2,9 @@ module Data.Buffer.Index
 
 import public Data.DPair
 import public Data.Nat
+import Data.Nat.BSExtra
 
 %default total
-
---------------------------------------------------------------------------------
---          Lemmata
---------------------------------------------------------------------------------
-
-0 lteMinus : (n : Nat) -> LTE (S (minus n 0)) (S n)
-lteMinus 0     = LTESucc LTEZero
-lteMinus (S k) = reflexive
-
-0 minusLT : (m,n : Nat) -> (lt : LT m n) -> LT (minus n (S m)) n
-minusLT 0     (S l) lt           = lteMinus l
-minusLT (S k) (S l) (LTESucc lt) =
-  let lt' = minusLT k l lt in lteSuccRight lt'
-minusLT 0     0     lt = absurd lt
-
-%hint
-0 refl : LTE n n
-refl = reflexive
-
-%hint
-0 lsl : (p : LTE (S m) n) => LTE m n
-lsl = lteSuccLeft p 
-
-export
-0 ltePlusRight : (o : Nat) -> LT m n -> LT (o + m) (o + n)
-ltePlusRight 0     lt = lt
-ltePlusRight (S k) lt = LTESucc $ ltePlusRight k lt
-
 
 --------------------------------------------------------------------------------
 --          Index
@@ -43,6 +16,12 @@ ltePlusRight (S k) lt = LTESucc $ ltePlusRight k lt
 public export
 0 Index : Nat -> Type
 Index n = Subset Nat (`LT` n)
+
+public export
+refineIndex : {n : Nat} -> (k : Nat) -> Maybe (Index n)
+refineIndex k with (compare k n) proof eq
+  _ | LT = Just (Element k $ compLTisLT k n eq)
+  _ | _  = Nothing
 
 public export
 toIndex : (k : Nat) -> (0 lt : LT k n) => Index n

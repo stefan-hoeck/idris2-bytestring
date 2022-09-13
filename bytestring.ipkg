@@ -4,8 +4,12 @@ authors    = "Stefan Höck"
 depends    = base    >= 0.5.1
            , prim
 
-modules    = Data.ByteString
+brief      = "Immutable strings of raw bytes"
+
+modules    = Data.Buffer.Index
+           , Data.Buffer.Indexed
+           , Data.ByteString
            , Data.ByteString.Indexed
-           , Data.ByteString.Internal
+           , Data.Nat.BSExtra
 
 sourcedir  = "src"
