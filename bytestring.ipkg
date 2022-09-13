@@ -4,7 +4,7 @@ authors    = "Stefan Höck"
 depends    = base    >= 0.5.1
            , prim
 
-brief      = "Immutable strings of raw bytes"
+brief      = "Immutable byte vectors for Idris2"
 
 modules    = Data.Buffer.Index
            , Data.Buffer.Indexed
