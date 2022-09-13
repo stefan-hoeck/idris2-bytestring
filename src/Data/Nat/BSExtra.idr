@@ -115,7 +115,7 @@ refl = reflexive
 
 export %hint
 0 lsl : (p : LTE (S m) n) => LTE m n
-lsl = lteSuccLeft p 
+lsl = lteSuccLeft p
 
 export
 0 lteAddLeft : (x : Nat) -> LTE m n -> LTE m (x + n)

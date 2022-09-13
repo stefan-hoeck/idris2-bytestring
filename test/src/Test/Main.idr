@@ -24,7 +24,7 @@ byteList = list (linear 0 30) byte
 -- we make sure to not only generate `ByteString`s with
 -- an offset of 0.
 bytestring : Gen ByteString
-bytestring = 
+bytestring =
   let bs1 := pack <$> byteList
       bs2 := [| substring smallNat smallNat bs1 |]
    in choice [bs1, bs2]
