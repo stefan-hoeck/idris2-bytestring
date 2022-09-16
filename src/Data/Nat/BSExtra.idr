@@ -1,6 +1,7 @@
 ||| This contains additional proofs on natural number.
 module Data.Nat.BSExtra
 
+import Algebra.Solver.Semiring
 import public Data.Nat
 
 %default total
@@ -68,13 +69,6 @@ compGT 0     (S k) prf = absurd prf
 compGT (S k) 0     prf = LTEZero
 compGT (S k) (S j) prf = LTESucc $ compGT k j prf
 
-export
-0 minLTE : (m,n : Nat) -> (LTE (min m n) m, LTE (min m n) n)
-minLTE m n with (compare m n) proof eq
-  _ | LT = (reflexive, compLT m n eq)
-  _ | EQ = (compEQ m n eq, reflexive)
-  _ | GT = (compGT m n eq, reflexive)
-
 ||| A data type for holding erased proofs
 public export
 data Maybe0 : Type -> Type where
@@ -123,6 +117,10 @@ lteAddLeft 0 y = y
 lteAddLeft (S k) y = lteSuccRight $ lteAddLeft k y
 
 export
+0 lteAddRight : (x : Nat) -> LTE m n -> LTE m (n + x)
+lteAddRight x lt = rewrite plusCommutative n x in lteAddLeft x lt
+
+export
 0 ltPlusRight : (o : Nat) -> LT m n -> LT (o + m) (o + n)
 ltPlusRight 0     lt = lt
 ltPlusRight (S k) lt = LTESucc $ ltPlusRight k lt
@@ -166,3 +164,41 @@ plusMinus (S k) (S j) (LTESucc p) = cong S $ plusMinus k j p
 export
 0 plusMinus' : (m,n : Nat) -> LTE m n -> (n `minus` m) + m === n
 plusMinus' m n lt = trans (plusCommutative (n `minus` m) m) (plusMinus m n lt)
+
+export
+0 plusSuccLT : (k,m,n : Nat) -> LTE (S k + m) n -> LT m n
+plusSuccLT 0     m n p = p
+plusSuccLT (S x) m n p = plusSuccLT x m n $ lteSuccLeft p
+
+export
+0 eqToLTE : {a,b : Nat} -> a === b -> LTE a b
+eqToLTE p = rewrite p in reflexive
+
+export
+0 sumEqLemma : (k,ix : Nat) -> S k + ix === n -> plus k (plus 1 ix) === n
+sumEqLemma k ix prf =
+  let pre := solve [k,ix,n] (k .+ (1 +. ix)) (1 + (k .+. ix))
+   in trans pre prf
+
+--------------------------------------------------------------------------------
+--          Offset
+--------------------------------------------------------------------------------
+
+||| Offset lemmata
+public export
+data Offset : (count, offset, bufLen : Nat) -> Type where
+  [search offset bufLen]
+  I : {c,o,l : Nat} -> (0 p : LTE (o + c) l) -> Offset c o l
+  N : Offset (S c) o l -> Offset c (S o) l
+
+export
+0 offsetToLTE : Offset c o l -> LTE (o+c) l
+offsetToLTE (I p)  = p
+offsetToLTE (N x) =
+  let prf := solve [o,c] (o .+ (1 +. c)) (1 + (o .+. c))
+      p2  := injective prf
+  in rewrite sym p2 in offsetToLTE x
+
+export
+0 offsetLTE : (off : Offset (S c) o l) -> LT o l
+offsetLTE off = ltPlusSuccRight o c l (offsetToLTE off)
