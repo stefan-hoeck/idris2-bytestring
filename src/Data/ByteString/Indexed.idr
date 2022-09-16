@@ -25,10 +25,16 @@ data ByteString : Nat -> Type where
      -> ByteString len
 
 ||| Reads the value of a `ByteString` at the given position
-export %inline
+export
 getByte : (x : Nat) -> (0 lt : LT x n) => ByteString n -> Bits8
 getByte x (BS buf o lte) =
   byteAt (o + x) buf {lt = transitive (ltPlusRight o lt) lte}
+
+||| Reads the value of a `ByteString` at the given position
+export
+getByteFromEnd : {n : _} -> (x : Nat) -> (0 lt : LT x n) => ByteString n -> Bits8
+getByteFromEnd x (BS buf o lte) =
+  byteFromEnd {end = o+n} x {lt = lteAddLeft o lt} buf
 
 ||| Reads the value of a `ByteString` at the given position
 export %inline
@@ -38,12 +44,7 @@ index (Element k _) bs = getByte k bs
 ||| Reads the value of a `ByteString` at the given position
 export %inline
 indexFromEnd : {n : _} -> Index n -> ByteString n -> Bits8
-indexFromEnd x = index (complement x)
-
-||| Reads the value of a `ByteString` at the given position
-export %inline
-getByteFromEnd : {n : _} -> (x : Nat) -> (0 lt : LT x n) => ByteString n -> Bits8
-getByteFromEnd x = indexFromEnd (Element x lt)
+indexFromEnd (Element x _) bs = getByteFromEnd x bs
 
 --------------------------------------------------------------------------------
 --          Making ByteStrings
@@ -98,18 +99,17 @@ export %inline
 ||| Lexicographic comparison of `ByteString`s of distinct length
 export
 hcomp : {m,n : Nat} -> ByteString m -> ByteString n -> Ordering
-hcomp bs1  bs2 = go 0 (min m n) (fst $ minLTE m n) (snd $ minLTE m n)
-  where go : (pos, stps : Nat)
-           -> (0 p1 : LTE (pos + stps) m)
-           -> (0 p2 : LTE (pos + stps) n)
-           -> Ordering
-        go pos 0     p1 p2 = compare m n
-        go pos (S k) p1 p2 =
-          let 0 lt1 = ltPlusSuccRight pos k m p1
-              0 lt2 = ltPlusSuccRight pos k n p2
-           in case compare (getByte pos bs1) (getByte pos bs2) of
-                EQ => go (S pos) k (ltePlusSuccRight p1) (ltePlusSuccRight p2)
-                r  => r
+hcomp (BS {bufLen = bl1} b1 o1 _) (BS {bufLen = bl2} b2 o2 _) = go m o1 n o2
+  where go : (c1,o1,c2,o2 : Nat)
+           -> (0 _ : Offset c1 o1 bl1)
+           => (0 _ : Offset c2 o2 bl2)
+           => Ordering
+        go 0     _  0     _  = EQ
+        go 0     _  (S _) _  = LT
+        go (S _) _  0     _  = GT
+        go (S k) o1 (S j) o2 = case compare (byteAtO o1 b1) (byteAtO o2 b2) of
+          EQ => go k (S o1) j (S o2)
+          r  => r
 
 ||| Heterogeneous equality for `ByteString`s
 export
@@ -147,7 +147,7 @@ fastConcat :  (bs : List (n ** ByteString n))
 fastConcat bs = BS (concatMany bs index) 0 refl
 
 ||| Concatenate two `ByteString`s. O(n + m).
-export %inline
+export
 append : {m,n : _} -> ByteString m  -> ByteString n -> ByteString (m + n)
 append b1 b2 =
   let 0 pp := solve [m,n]
@@ -228,19 +228,20 @@ reverse bs = generate n (\x => indexFromEnd x bs)
 ||| True, if the predicate holds for all bytes in the given `ByteString`
 export
 all : {n : _} -> (Bits8 -> Bool) -> ByteString n -> Bool
-all p bs = go n
-  where go : (k : Nat) -> (0 lt : LTE k n) => Bool
-        go 0     = True
-        go (S k) = if p (getByte k bs) then go k else False
+all p (BS {bufLen} buf off lte) = go n off
+  where go : (c, o : Nat) -> (0 off : Offset c o bufLen) => Bool
+        go 0     o = True
+        go (S k) o = if p (byteAtO o buf) then go k (S o) else False
 
 ||| True, if the predicate holds for at least one byte
 ||| in the given `ByteString`
 export
 any : {n : _} -> (Bits8 -> Bool) -> ByteString n -> Bool
-any p bs = go n
-  where go : (k : Nat) -> (0 lt : LTE k n) => Bool
-        go 0     = False
-        go (S k) = if p (getByte k bs) then True else go k
+any p (BS {bufLen} buf off lte) = go n off
+  where go : (c, o : Nat) -> (0 _ : Offset c o bufLen) => Bool
+        go 0     o = False
+        go (S k) o = if p (byteAtO o buf) then True else go k (S o)
+
 
 ||| True, if the given `Bits8` appears in the `ByteString`.
 export %inline
@@ -249,10 +250,10 @@ elem b = any (b ==)
 
 export
 foldl : {n : _} -> (a -> Bits8 -> a) -> a -> ByteString n -> a
-foldl f ini bs = go n ini
-  where go : (k : Nat) -> (v : a) -> (0 lt : LTE k n) => a
-        go 0     v = v
-        go (S k) v = go k (f v $ getByteFromEnd k bs)
+foldl f ini (BS {bufLen} buf off lte) = go n off ini
+  where go : (c,o : Nat) -> (v : a) -> (0 _ : Offset c o bufLen) => a
+        go 0     o v = v
+        go (S k) o v = go k (S o) (f v $ byteAtO o buf)
 
 export
 foldr : {n : _} -> (Bits8 -> a -> a) -> a -> ByteString n -> a
@@ -269,12 +270,15 @@ findIndex :  {n : _}
           -> (Bits8 -> Bool)
           -> ByteString n
           -> Maybe (Subset Nat (`LT` n))
-findIndex p bs = go n
-  where go : (k : Nat) -> (0 lt : LTE k n) => Maybe (Index n)
-        go 0     = Nothing
-        go (S k) = case p (getByteFromEnd k bs) of
-          True  => Just $ toIndex k
-          False => go k
+findIndex p (BS {bufLen} buf off _) = go n off
+  where go :  (c,o : Nat)
+           -> (0 _ : Offset c o bufLen)
+           => (0 _ : LTE c n)
+           => Maybe (Index n)
+        go 0     _ = Nothing
+        go (S k) o = case p (byteAtO o buf) of
+          True  => Just $ toEndIndex k
+          False => go k (S o)
 
 ||| Return the index of the first occurence of the given
 ||| byte in the `ByteString`, or `Nothing`, if the byte
@@ -295,11 +299,25 @@ findIndexOrLength :  {n : _}
                   -> (Bits8 -> Bool)
                   -> ByteString n
                   -> SubLength n
-findIndexOrLength p bs = go n
-  where go : (k : Nat) -> (0 lt : LTE k n) => SubLength n
-        go 0     = sublength n
-        go (S k) = let x = complement (toIndex k)
-                    in if p (index x bs) then fromIndex x else go k
+findIndexOrLength p (BS {bufLen} buf off _) = go n off
+  where go :  (c,o : Nat)
+           -> (0 _ : Offset c o bufLen)
+           => (0 _ : LTE c n)
+           => SubLength n
+        go 0     o = sublength n
+        go (S k) o =
+          if p (byteAtO o buf) then fromIndex (toEndIndex k) else go k (S o)
+
+findIndexOrLengthNL : {n : _} -> ByteString n -> SubLength n
+findIndexOrLengthNL (BS {bufLen} buf off _) = go n off
+  where go :  (c,o : Nat)
+           -> (0 _ : Offset c o bufLen)
+           => (0 _ : LTE c n)
+           => SubLength n
+        go 0     o = sublength n
+        go (S k) o = case byteAtO o buf of
+          10 => fromIndex (toEndIndex k)
+          _  => go k (S o)
 
 findFromEndUntil : {n : _} -> (Bits8 -> Bool) -> ByteString n -> SubLength n
 findFromEndUntil p bs = go n
@@ -458,6 +476,15 @@ break :  {n : _}
       -> BreakRes n
 break p bs =
   let Element k _ = findIndexOrLength p bs
+      bs1 = take k bs
+      bs2 = drop k bs
+   in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinus k n %search)
+
+||| Returns the longest (possibly empty) prefix before the first newline character
+export
+breakNL : {n : _} -> ByteString n -> BreakRes n
+breakNL bs =
+  let Element k _ = findIndexOrLengthNL bs
       bs1 = take k bs
       bs2 = drop k bs
    in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinus k n %search)

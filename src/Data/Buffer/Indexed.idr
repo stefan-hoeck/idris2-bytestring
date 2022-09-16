@@ -13,14 +13,12 @@ import System.File
 --------------------------------------------------------------------------------
 
 %foreign "scheme:blodwen-buffer-getbyte"
-         "RefC:getBufferByte"
-         "node:lambda:(buf,offset)=>buf.readUInt8(offset)"
-prim__getByte : Buffer -> (offset : Bits32) -> Bits8
+         "node:lambda:(buf,offset)=>buf.readUInt8(Number(offset))"
+prim__getByte : Buffer -> (offset : Integer) -> Bits8
 
 %foreign "scheme:blodwen-buffer-setbyte"
-         "RefC:setBufferByte"
-         "node:lambda:(buf,offset,value)=>buf.writeUInt8(value, offset)"
-prim__setByte : Buffer -> (offset : Bits32) -> (val : Bits8) -> PrimIO ()
+         "node:lambda:(buf,offset,value)=>buf.writeUInt8(value, Number(offset))"
+prim__setByte : Buffer -> (offset : Integer) -> (val : Bits8) -> PrimIO ()
 
 %foreign "scheme:blodwen-new-buffer"
          "RefC:newBuffer"
@@ -45,9 +43,25 @@ export %inline
 byteAt : (x : Nat) -> (0 lt : LT x n) => IBuffer n -> Bits8
 byteAt x (Buf buf) = prim__getByte buf (cast x)
 
+||| Reads the value of a `ByteString` at the given position
+export %inline
+byteAtO : (o : Nat) -> IBuffer n -> (0 off : Offset (S c) o n) => Bits8
+byteAtO o buf = byteAt o buf {lt = offsetLTE off}
+
+||| Reads the value of a `ByteString` conting from the end of the buffer
+export %inline
+byteFromEnd :  {end : _}
+            -> (x : Nat)
+            -> (0 lt : LT x end)
+            => IBuffer n
+            -> (0 lte : LTE end n)
+            => Bits8
+byteFromEnd x (Buf buf) =
+  prim__getByte buf (natToInteger end - natToInteger x - 1)
+
 %inline
-writeByte :  (x : Bits32) -> (v : Bits8) -> Buffer -> PrimIO ()
-writeByte x v buf = prim__setByte buf x v
+writeByte :  (x : Nat) -> (v : Bits8) -> Buffer -> PrimIO ()
+writeByte x v buf = prim__setByte buf (cast x) v
 
 ||| The empty `Buffer`.
 export
@@ -59,7 +73,7 @@ empty = Buf (prim__newBuf 0)
 export
 fromList : (a -> Bits8) -> (as : List a) -> IBuffer (length as)
 fromList f vs = Buf $ unsafe $ go vs 0 (prim__newBuf $ cast $ length vs)
-  where go : (as : List a) -> (x  : Bits32) -> Buffer -> PrimIO Buffer
+  where go : (as : List a) -> (x  : Nat) -> Buffer -> PrimIO Buffer
         go []        ix buf w = MkIORes buf w
         go (b :: bs) ix buf w =
           let MkIORes () w2 = writeByte ix (f b) buf w
@@ -71,7 +85,7 @@ generate n f = unsafe $ go n (prim__newBuf $ cast n)
   where go : (k : Nat) -> (0 lt : LTE k n) => Buffer -> PrimIO (IBuffer n)
         go 0     buf w = MkIORes (Buf buf) w
         go (S k) buf w =
-          let MkIORes () w2 = writeByte (cast k) (f $ toIndex k) buf w
+          let MkIORes () w2 = writeByte k (f $ toIndex k) buf w
            in go k buf w2
 
 public export
@@ -93,7 +107,7 @@ concatMany ps f =
              -> Buffer
              -> PrimIO ()
         copy pn ix o buf w =
-          let MkIORes () w2 := writeByte (cast $ ix + o) (f (Element ix prf) pn) buf w
+          let MkIORes () w2 := writeByte (ix + o) (f (Element ix prf) pn) buf w
            in case ix of
                 Z     => MkIORes () w2
                 (S k) => copy pn k o buf w2
@@ -114,17 +128,17 @@ concatMany ps f =
 
 export
 generateMaybe : (n : Nat) -> (Index n -> Maybe Bits8) -> (k ** IBuffer k)
-generateMaybe n f = unsafe $ go n 0 (prim__newBuf $ cast n)
-  where go :  (m    : Nat)
-           -> (0 lt : LTE m n)
-           => (pos  : Nat)
+generateMaybe n f = unsafe $ go n 0 (plusZeroRightNeutral n) 0 (prim__newBuf $ cast n)
+  where go :  (c,ix : Nat)
+           -> (0 prf : c + ix === n)
+           -> (pos  : Nat)
            -> Buffer
            -> PrimIO (k ** IBuffer k)
-        go 0     pos buf w = MkIORes (pos ** Buf buf) w
-        go (S k) pos buf w = case f (complement $ toIndex k) of
-          Nothing => go k pos buf w
-          Just b  => let MkIORes () w2 := writeByte (cast pos) b buf w
-                      in go k (pos + 1) buf w2
+        go 0     ix prf pos buf w = MkIORes (pos ** Buf buf) w
+        go (S k) ix prf pos buf w = case f (toIndexLT ix $ eqToLTE prf) of
+          Nothing => go k (S ix) (sumEqLemma k ix prf) pos buf w
+          Just b  => let MkIORes () w2 := writeByte pos b buf w
+                      in go k (S ix) (sumEqLemma k ix prf) (pos + 1) buf w2
 
 export
 readBuffer :  HasIO io => Nat -> File -> io (Either FileError (k ** IBuffer k))
