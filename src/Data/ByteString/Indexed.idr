@@ -1,8 +1,9 @@
 module Data.ByteString.Indexed
 
 import Algebra.Solver.Semiring
-import Data.Buffer.Indexed
-import Data.Nat.BSExtra
+import public Data.Buffer.Indexed
+import public Data.Byte
+import public Data.Nat.BSExtra
 import System.File
 
 %default total
@@ -17,7 +18,7 @@ import System.File
 ||| The internal buffer is treated as being immutable,
 ||| so operations modifying a `ByteString` will create
 ||| and write to a new `Buffer`.
-export
+public export
 data ByteString : Nat -> Type where
   BS :  (buf    : IBuffer bufLen)
      -> (offset : Nat)
@@ -60,6 +61,17 @@ empty = BS empty 0 %search
 export
 fromList : (a -> Bits8) -> (as : List a) -> ByteString (length as)
 fromList f as = BS (fromList f as) 0 reflexive
+
+||| Converts a `String` to a `ByteString`. Note: This is only
+||| well-defined if the string consists only of ASCII characters.
+export
+fromString : (s : String) -> ByteString (cast $ stringByteLength s)
+fromString s = BS (fromString s) 0 reflexive
+
+||| Converts a `ByteString` to a UTF-8 encoded string
+export
+toString : {n : _} -> ByteString n -> String
+toString (BS buf o _) = toString buf o n
 
 ||| Converts a list of `Bits8` values to a `ByteString`.
 export %inline
@@ -194,7 +206,7 @@ export
 init : ByteString (S n) -> ByteString n
 init (BS buf o p) = BS buf o (lteSuccLeft $ ltePlusSuccRight p)
 
-||| The last `Bits8` from a `ByteString`. O(1).
+||| Split a `ByteString` at the last byte. O(1).
 export
 unsnoc : {n : _} -> ByteString (S n) -> (Bits8, ByteString n)
 unsnoc bs = (last bs, init bs)
@@ -210,22 +222,24 @@ map : {n : _} -> (Bits8 -> Bits8) -> ByteString n -> ByteString n
 map f bs = generate n (\x => f $ index x bs)
 
 ||| Interpreting the values stored in a `ByteString` as 8 bit characters,
-||| convert every lower-case character to its upper-case form.
+||| convert every lower-case character to its upper-case form. O(n)
 export
 toUpper : {n : _} -> ByteString n -> ByteString n
 toUpper = map (cast . Prelude.toUpper . cast)
 
 ||| Interpreting the values stored in a `ByteString` as 8 bit characters,
-||| convert every upper-case character to its lower-case form.
+||| convert every upper-case character to its lower-case form. O(n)
 export
 toLower : {n : _} -> ByteString n -> ByteString n
 toLower = map (cast . Prelude.toLower . cast)
 
+||| Inverse the order of bytes in a `ByteString`. O(n)
 export
 reverse : {n : _} -> ByteString n -> ByteString n
 reverse bs = generate n (\x => indexFromEnd x bs)
 
-||| True, if the predicate holds for all bytes in the given `ByteString`
+||| True, if the predicate holds for all bytes
+||| in the given `ByteString`. O(n)
 export
 all : {n : _} -> (Bits8 -> Bool) -> ByteString n -> Bool
 all p (BS {bufLen} buf off lte) = go n off
@@ -234,7 +248,7 @@ all p (BS {bufLen} buf off lte) = go n off
         go (S k) o = if p (byteAtO o buf) then go k (S o) else False
 
 ||| True, if the predicate holds for at least one byte
-||| in the given `ByteString`
+||| in the given `ByteString`. O(n)
 export
 any : {n : _} -> (Bits8 -> Bool) -> ByteString n -> Bool
 any p (BS {bufLen} buf off lte) = go n off
@@ -243,11 +257,12 @@ any p (BS {bufLen} buf off lte) = go n off
         go (S k) o = if p (byteAtO o buf) then True else go k (S o)
 
 
-||| True, if the given `Bits8` appears in the `ByteString`.
+||| True, if the given `Bits8` appears in the `ByteString`. O(n)
 export %inline
 elem : {n : _} -> Bits8 -> ByteString n -> Bool
 elem b = any (b ==)
 
+||| Fold a `ByteString` from the left. O(n)
 export
 foldl : {n : _} -> (a -> Bits8 -> a) -> a -> ByteString n -> a
 foldl f ini (BS {bufLen} buf off lte) = go n off ini
@@ -255,6 +270,7 @@ foldl f ini (BS {bufLen} buf off lte) = go n off ini
         go 0     o v = v
         go (S k) o v = go k (S o) (f v $ byteAtO o buf)
 
+||| Fold a `ByteString` from the right. O(n)
 export
 foldr : {n : _} -> (Bits8 -> a -> a) -> a -> ByteString n -> a
 foldr f ini bs = go n ini
@@ -264,7 +280,7 @@ foldr f ini bs = go n ini
 
 ||| The `findIndex` function takes a predicate and a `ByteString` and
 ||| returns the index of the first element in the ByteString
-||| satisfying the predicate.
+||| satisfying the predicate. O(n)
 export
 findIndex :  {n : _}
           -> (Bits8 -> Bool)
@@ -282,11 +298,13 @@ findIndex p (BS {bufLen} buf off _) = go n off
 
 ||| Return the index of the first occurence of the given
 ||| byte in the `ByteString`, or `Nothing`, if the byte
-||| does not appear in the ByteString.
+||| does not appear in the ByteString. O(n)
 export
 elemIndex : {n : _} -> Bits8 -> ByteString n -> Maybe (Index n)
 elemIndex c = findIndex (c ==)
 
+||| Returns the first value byte in a `ByteString` fulfilling
+||| the given predicate. O(n)
 export
 find : {n : _} -> (Bits8 -> Bool) -> ByteString n -> Maybe Bits8
 find p bs = (`index` bs) <$> findIndex p bs
@@ -458,6 +476,21 @@ dropWhileEnd f bs =
   let Element k _ = findFromEndUntil (not . f) bs
    in (k ** take k bs)
 
+||| Remove leading whitespace from a `ByteString`
+export
+trimLeft : {n : _} -> ByteString n -> (k ** ByteString k)
+trimLeft = dropWhile isSpace
+
+||| Remove trailing whitespace from a `ByteString`
+export
+trimRight : {n : _} -> ByteString n -> (k ** ByteString k)
+trimRight = dropWhileEnd isSpace
+
+||| Remove all leading and trailing whitespace from a `ByteString`
+export
+trim : {n : _} -> ByteString n -> (k ** ByteString k)
+trim bs = let (k ** bs') := trimLeft bs in trimRight bs'
+
 public export
 record BreakRes (n : Nat) where
   constructor MkBreakRes
@@ -524,16 +557,6 @@ spanEnd p bs =
       bs2 = drop k bs
    in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinus k n %search)
 
-0 splitWithLemma : (k,m,n : Nat) -> k + m === n -> LTE m n
-splitWithLemma 0     0     0     p = LTEZero
-splitWithLemma 0     (S x) (S y) p =
-  LTESucc $ splitWithLemma 0 x y (injective p)
-splitWithLemma (S k) m     (S y) p =
-  lteSuccRight $ splitWithLemma k m y (injective p)
-splitWithLemma 0     0     (S y) p impossible
-splitWithLemma 0     (S x) 0     p impossible
-splitWithLemma (S k) m     0     p impossible
-
 ||| Splits a 'ByteString' into components delimited by
 ||| separators, where the predicate returns True for a separator element.
 ||| The resulting components do not contain the separators. Two adjacent
@@ -543,27 +566,15 @@ splitWith :  {n : _}
           -> (Bits8 -> Bool)
           -> ByteString n
           -> List (k ** ByteString k)
-splitWith p bs = go n 0 0 (plusZeroRightNeutral n) Lin
-  where go :  (x,o,l : Nat)
-           -> (0 prf : x + (o + l) === n)
-           -> (0 lt  : LTE x n)
-           => SnocList (k ** ByteString k)
+splitWith p bs = go Lin n bs
+  where go :  SnocList (k ** ByteString k)
+           -> (m : Nat)
+           -> ByteString m
            -> List (k ** ByteString k)
-        go 0     o l prf sb =
-          let 0 lemma := splitWithLemma 0 (o + l) n prf
-           in sb <>> [(_ ** substring o l bs)]
-        go (S k) o l prf sb = case p (getByteFromEnd k bs) of
-          False =>
-            let 0 pp := solve [o, l, k]
-                         (k .+ (o .+ (1 +. l)))
-                         (1 + (k .+ (o .+. l)))
-             in go k o (S l) (trans pp prf) sb
-          True  =>
-            let 0 lemma := splitWithLemma (S k) (o + l) n prf
-                0 pp := solve [o, l, k]
-                         (k .+ ((o .+ (1 +. l)) + 0))
-                         (1 + (k .+ (o .+. l)))
-             in go k (o + S l) 0 (trans pp prf) (sb :< (_ ** substring o l bs))
+        go sb m bs' = case break p bs' of
+          MkBreakRes l1 0      b1 _  prf => sb <>> [(l1 ** b1)]
+          MkBreakRes l1 (S l2) b1 b2 prf =>
+            go (sb :< (l1 ** b1)) (assert_smaller m l2) (tail b2)
 
 ||| Break a `ByteString` into pieces separated by the byte
 ||| argument, consuming the delimiter.
@@ -571,9 +582,21 @@ splitWith p bs = go n 0 0 (plusZeroRightNeutral n) Lin
 ||| As for all splitting functions in this library, this function does
 ||| not copy the substrings, it just constructs new `ByteString`s that
 ||| are slices of the original.
-export
+export %inline
 split : {n : _} -> Bits8 -> ByteString n -> List (k ** ByteString k)
 split b = splitWith (b ==)
+
+export
+lines : {n : _} -> ByteString n -> List (k ** ByteString k)
+lines bs = go Lin n bs
+  where go :  SnocList (k ** ByteString k)
+           -> (m : Nat)
+           -> ByteString m
+           -> List (k ** ByteString k)
+        go sb m bs' = case breakNL bs' of
+          MkBreakRes l1 0      b1 _  prf => sb <>> [(l1 ** b1)]
+          MkBreakRes l1 (S l2) b1 b2 prf =>
+            go (sb :< (l1 ** b1)) (assert_smaller m l2) (tail b2)
 
 --------------------------------------------------------------------------------
 --          Reading and Writing from and to Files

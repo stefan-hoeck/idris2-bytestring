@@ -29,8 +29,8 @@ bytestring =
       bs2 := [| substring smallNat smallNat bs1 |]
    in choice [bs1, bs2]
 
-latinString : Gen String
-latinString = string (linear 0 30) latin
+asciiString : Gen String
+asciiString = string (linear 0 30) ascii
 
 --------------------------------------------------------------------------------
 --          Properties
@@ -125,7 +125,7 @@ snocInit = property $ do
 
 prop_substring : Property
 prop_substring = property $ do
-  [start,len,str] <- forAll $ np [smallNat,smallNat,latinString]
+  [start,len,str] <- forAll $ np [smallNat,smallNat,asciiString]
   let ss = substring start len (fromString str)
 
   fromString (substr (cast start) (cast len) str) ===

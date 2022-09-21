@@ -2,8 +2,8 @@ module Data.Buffer.Indexed
 
 import Algebra.Solver.Semiring
 import public Data.Buffer.Index
-import Data.Nat.BSExtra
-import Data.Buffer
+import public Data.Nat.BSExtra
+import public Data.Buffer
 import System.File
 
 %default total
@@ -21,9 +21,12 @@ prim__getByte : Buffer -> (offset : Integer) -> Bits8
 prim__setByte : Buffer -> (offset : Integer) -> (val : Bits8) -> PrimIO ()
 
 %foreign "scheme:blodwen-new-buffer"
-         "RefC:newBuffer"
          "node:lambda:s=>Buffer.alloc(s)"
 prim__newBuf : Bits32 -> Buffer
+
+%foreign "scheme:blodwen-buffer-getstring"
+         "node:lambda:(buf,offset,len)=>buf.slice(Number(offset), Number(offset+len)).toString('utf-8')"
+prim__getString : Buffer -> (offset,len : Integer) -> String
 
 %inline
 unsafe : PrimIO a -> a
@@ -37,6 +40,10 @@ unsafe io = unsafePerformIO $ fromPrim io
 export
 data IBuffer : Nat -> Type where
   Buf : (buf : Buffer) -> IBuffer len
+
+export
+toString : IBuffer n -> (off,len : Nat) -> (0 _ : LTE (off + len) n) => String
+toString (Buf buf) off len = prim__getString buf (cast off) (cast len)
 
 ||| Reads the value of a `ByteString` at the given position
 export %inline
@@ -78,6 +85,15 @@ fromList f vs = Buf $ unsafe $ go vs 0 (prim__newBuf $ cast $ length vs)
         go (b :: bs) ix buf w =
           let MkIORes () w2 = writeByte ix (f b) buf w
            in go bs (ix+1) buf w2
+
+||| Convert an UTF-8 string to a buffer
+export
+fromString : (s : String) -> IBuffer (cast $ stringByteLength s)
+fromString s =
+  Buf $ unsafe $ \w =>
+    let buf            := prim__newBuf (cast $ stringByteLength s)
+        MkIORes () w2  := toPrim (setString buf 0 s) w
+     in MkIORes buf w2
 
 export
 generate : (n : Nat) -> (Index n -> Bits8) -> IBuffer n

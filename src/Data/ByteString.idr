@@ -71,6 +71,11 @@ export %inline
 unpack : ByteString -> List Bits8
 unpack = toList id
 
+||| Converts a `ByteString` to a UTF-8 encoded string
+export
+toString : ByteString -> String
+toString (BS _ bs) = toString bs
+
 ||| Converts a `ByteString` to a String. All characters
 ||| will be in the range [0,255], so this does not perform
 ||| any character decoding.
@@ -88,7 +93,7 @@ Ord ByteString where
 
 export
 FromString ByteString where
-  fromString = fromList cast . unpack
+  fromString s = BS _ $ fromString s
 
 --------------------------------------------------------------------------------
 --          Core Functionality
