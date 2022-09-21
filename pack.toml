@@ -7,3 +7,14 @@ ipkg   = "bytestring.ipkg"
 type   = "local"
 path   = "test"
 ipkg   = "test.ipkg"
+
+[custom.all.bytestring-profile]
+type   = "local"
+path   = "profile"
+ipkg   = "profile.ipkg"
+
+[custom.all.profiler]
+type   = "github"
+url    = "https://github.com/stefan-hoeck/idris2-profiler"
+commit = "latest:main"
+ipkg   = "profiler.ipkg"
