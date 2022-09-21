@@ -62,8 +62,8 @@ export
 fromList : (a -> Bits8) -> (as : List a) -> ByteString (length as)
 fromList f as = BS (fromList f as) 0 reflexive
 
-||| Converts a `String` to a `ByteString`. Note: This is only
-||| well-defined if the string consists only of ASCII characters.
+||| Converts a `String` to a `ByteString`. Note: This will
+||| correctly decode the corresponding UTF-8 string.
 export
 fromString : (s : String) -> ByteString (cast $ stringByteLength s)
 fromString s = BS (fromString s) 0 reflexive
