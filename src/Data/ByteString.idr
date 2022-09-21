@@ -4,7 +4,7 @@ module Data.ByteString
 import Data.Nat.BSExtra
 import Data.Buffer.Index
 import Data.Buffer.Indexed
-import Data.ByteString.Indexed as I
+import Data.ByteVect
 import System.File
 
 %default total
@@ -12,14 +12,6 @@ import System.File
 --------------------------------------------------------------------------------
 --          ByteString
 --------------------------------------------------------------------------------
-
-||| An immutable string of raw bytes. For an length-indexed version,
-||| see module `Data.ByteString.Indexed`.
-public export
-record ByteString where
-  constructor BS
-  size : Nat
-  repr : I.ByteString size
 
 export
 null : ByteString -> Bool
@@ -104,12 +96,6 @@ generate : (n : Nat) -> (Index n -> Bits8) -> ByteString
 generate n f = BS n (generate n f)
 
 export
-generateMaybe : (n : Nat) -> (Index n -> Maybe Bits8) -> ByteString
-generateMaybe n f =
-  let (k ** bs) = I.generateMaybe n f
-   in BS k bs
-
-export
 replicate : (n : Nat) -> Bits8 -> ByteString
 replicate n = generate n . const
 
@@ -123,8 +109,7 @@ replicate n = generate n . const
 export
 fastConcat :  (bs : List ByteString) -> ByteString
 fastConcat bs =
-  let ps := map (\(BS k bs) => (k ** bs)) bs
-   in BS (totLength ps) (fastConcat ps)
+   BS (totLength bs) $ BV (concatBuffer bs) 0 refl
 
 ||| Concatenate two `ByteString`s. O(n + m).
 export %inline
@@ -202,13 +187,13 @@ map f (BS n bs) = BS n $ map f bs
 ||| convert every lower-case character to its upper-case form.
 export %inline
 toUpper : ByteString -> ByteString
-toUpper = map (cast . Prelude.toUpper . cast)
+toUpper = map toUpper
 
 ||| Interpreting the values stored in a `ByteString` as 8 bit characters,
 ||| convert every upper-case character to its lower-case form.
 export %inline
 toLower : ByteString -> ByteString
-toLower = map (cast . Prelude.toLower . cast)
+toLower = map toLower
 
 export %inline
 reverse : ByteString -> ByteString
@@ -273,11 +258,11 @@ substring s l (BS n bs) = case tryLTE (s+l) n of
 
 export
 mapMaybe : (Bits8 -> Maybe Bits8) -> ByteString -> ByteString
-mapMaybe f (BS n bs) = let (k ** bs2) := mapMaybe f bs in BS k bs2
+mapMaybe f (BS n bs) = mapMaybe f bs
 
 export
 filter : (Bits8 -> Bool) -> ByteString -> ByteString
-filter p (BS n bs) = let (k ** bs2) := filter p bs in BS k bs2
+filter p (BS n bs) = filter p bs
 
 ||| Return a `ByteString` with the first `n` values of
 ||| the input string. Returns the whole string if
@@ -320,27 +305,27 @@ splitAt k (BS n bs) = case tryLTE k n of
 
 ||| Extracts the longest prefix of elements satisfying the
 ||| predicate.
-export
+export %inline
 takeWhile : (Bits8 -> Bool) -> ByteString -> ByteString
-takeWhile p (BS n bs) = let (k ** bs2) := takeWhile p bs in BS k bs2
+takeWhile p (BS n bs) = takeWhile p bs
 
 ||| Returns the longest (possibly empty) suffix of elements
 ||| satisfying the predicate.
-export
+export %inline
 takeWhileEnd : (Bits8 -> Bool) -> ByteString -> ByteString
-takeWhileEnd p (BS n bs) = let (k ** bs2) := takeWhileEnd p bs in BS k bs2
+takeWhileEnd p (BS n bs) = takeWhileEnd p bs
 
 ||| Drops the longest (possibly empty) prefix of elements
 ||| satisfying the predicate and returns the remainder.
-export
+export %inline
 dropWhile : (Bits8 -> Bool) -> ByteString -> ByteString
-dropWhile p (BS n bs) = let (k ** bs2) := dropWhile p bs in BS k bs2
+dropWhile p (BS n bs) = dropWhile p bs
 
 ||| Drops the longest (possibly empty) suffix of elements
 ||| satisfying the predicate and returns the remainder.
-export
+export %inline
 dropWhileEnd : (Bits8 -> Bool) -> ByteString -> ByteString
-dropWhileEnd p (BS n bs) = let (k ** bs2) := dropWhileEnd p bs in BS k bs2
+dropWhileEnd p (BS n bs) = dropWhileEnd p bs
 
 ||| Returns the longest (possibly empty) prefix of elements which do not
 ||| satisfy the predicate and the remainder of the string.
@@ -378,7 +363,7 @@ spanEnd p (BS n bs) =
 ||| separators result in an empty component in the output. eg.
 export
 splitWith : (Bits8 -> Bool) -> ByteString -> List ByteString
-splitWith p (BS n bs) = map (\(k ** bsk) => BS k bsk) $ splitWith p bs
+splitWith p (BS n bs) = splitWith p bs
 
 ||| Break a `ByteString` into pieces separated by the byte
 ||| argument, consuming the delimiter.
@@ -389,20 +374,3 @@ splitWith p (BS n bs) = map (\(k ** bsk) => BS k bsk) $ splitWith p bs
 export %inline
 split : Bits8 -> ByteString -> List ByteString
 split b = splitWith (b ==)
-
---------------------------------------------------------------------------------
---          Reading and Writing from and to Files
---------------------------------------------------------------------------------
-
-export
-readByteString : HasIO io => Nat -> File -> io (Either FileError ByteString)
-readByteString max f = do
-  Right (k ** bs) <- I.readByteString max f | Left err => pure (Left err)
-  pure $ Right (BS k bs)
-
-export
-writeByteString :  HasIO io
-                => File
-                -> ByteString
-                -> io (Either (FileError,Int) ())
-writeByteString h (BS n bs) = writeByteString h bs

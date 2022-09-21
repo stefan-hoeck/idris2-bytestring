@@ -28,18 +28,50 @@ prim__newBuf : Bits32 -> Buffer
          "node:lambda:(buf,offset,len)=>buf.slice(Number(offset), Number(offset+len)).toString('utf-8')"
 prim__getString : Buffer -> (offset,len : Integer) -> String
 
+%foreign "scheme:blodwen-buffer-copydata"
+         "node:lambda:(b1,o1,length,b2,o2)=>b1.copy(Number(b2),Number(o2),Number(o1),Number(o1+length))"
+prim__copy : (src : Buffer) -> (srcOffset, len : Integer) ->
+             (dst : Buffer) -> (dstOffset : Integer) -> PrimIO ()
+
 %inline
 unsafe : PrimIO a -> a
 unsafe io = unsafePerformIO $ fromPrim io
 
 --------------------------------------------------------------------------------
---          IBuffer
+--          Types
 --------------------------------------------------------------------------------
 
 ||| An immutable `Buffer` indexed over its size.
 export
 data IBuffer : Nat -> Type where
   Buf : (buf : Buffer) -> IBuffer len
+
+||| An immutable, length-indexed byte vector.
+|||
+||| Internally represented by a `Data.Buffer` together
+||| with its length and offset.
+|||
+||| The internal buffer is treated as being immutable,
+||| so operations modifying a `ByteVect` will create
+||| and write to a new `Buffer`.
+public export
+data ByteVect : Nat -> Type where
+  BV :  (buf    : IBuffer bufLen)
+     -> (offset : Nat)
+     -> (0 lte  : LTE (offset + len) bufLen)
+     -> ByteVect len
+
+||| An immutable string of raw bytes. For an length-indexed version,
+||| see module `ByteVect` and `Data.ByteVect`.
+public export
+record ByteString where
+  constructor BS
+  size : Nat
+  repr : ByteVect size
+
+--------------------------------------------------------------------------------
+--          IBuffer
+--------------------------------------------------------------------------------
 
 export
 toString : IBuffer n -> (off,len : Nat) -> (0 _ : LTE (off + len) n) => String
@@ -105,56 +137,45 @@ generate n f = unsafe $ go n (prim__newBuf $ cast n)
            in go k buf w2
 
 public export
-totLength : {0 p : Nat -> Type} -> List (n ** p n) -> Nat
-totLength []               = 0
-totLength ((n ** _) :: xs) = n + totLength xs
+totLength : List ByteString -> Nat
+totLength []             = 0
+totLength (BS n _ :: xs) = n + totLength xs
 
 export
-concatMany :  {0 p : Nat -> Type}
-           -> (ps  : List (n ** p n))
-           -> (f   : forall n . Index n -> p n -> Bits8)
-           -> IBuffer (totLength ps)
-concatMany ps f =
+concatBuffer : (ps  : List ByteString) -> IBuffer (totLength ps)
+concatBuffer ps =
   unsafe $ go ps 0 (prim__newBuf $ cast $ totLength ps) Refl
-  where copy :  p n
-             -> (ix : Nat)
-             -> (0 prf : LT ix n)
-             => (o : Nat)
-             -> Buffer
-             -> PrimIO ()
-        copy pn ix o buf w =
-          let MkIORes () w2 := writeByte (ix + o) (f (Element ix prf) pn) buf w
-           in case ix of
-                Z     => MkIORes () w2
-                (S k) => copy pn k o buf w2
-
-        go :  (qs : List (n ** p n))
+  where go :  (qs : List ByteString)
            -> (o  : Nat)
            -> Buffer
            -> (0 prf : (o + totLength qs) === totLength ps)
-           -> PrimIO (IBuffer m)
-        go []                   o buf prf w = MkIORes (Buf buf) w
-        go ((0   ** snd) :: xs) o buf prf w = go xs o buf prf w
-        go ((S k ** snd) :: xs) o buf prf w =
-          let MkIORes () w2 := copy snd k o buf w
+           -> PrimIO (IBuffer $ totLength ps)
+        go []                               o buf prf w = MkIORes (Buf buf) w
+        go (BS 0 _                   :: xs) o buf prf w = go xs o buf prf w
+        go (BS k (BV (Buf src) so _) :: xs) o buf prf w =
+          let MkIORes () w2 := prim__copy src (cast so) (cast k) buf (cast o) w
               0 pp := solve [k, o, totLength xs]
-                       (1 + ((k .+. o)+. totLength xs))
-                       (o .+ (1 + (k .+. totLength xs)))
-           in go xs (S k + o) buf (trans pp prf) w2
+                       ((k .+. o) +. totLength xs)
+                       (o .+ (k .+. totLength xs))
+           in go xs (k + o) buf (trans pp prf) w2
 
 export
-generateMaybe : (n : Nat) -> (Index n -> Maybe Bits8) -> (k ** IBuffer k)
+generateMaybe : (n : Nat) -> (Index n -> Maybe Bits8) -> ByteString
 generateMaybe n f = unsafe $ go n 0 (plusZeroRightNeutral n) 0 (prim__newBuf $ cast n)
   where go :  (c,ix : Nat)
            -> (0 prf : c + ix === n)
            -> (pos  : Nat)
            -> Buffer
-           -> PrimIO (k ** IBuffer k)
-        go 0     ix prf pos buf w = MkIORes (pos ** Buf buf) w
+           -> PrimIO ByteString
+        go 0     ix prf pos buf w = MkIORes (BS pos $ BV (Buf buf) 0 refl) w
         go (S k) ix prf pos buf w = case f (toIndexLT ix $ eqToLTE prf) of
           Nothing => go k (S ix) (sumEqLemma k ix prf) pos buf w
           Just b  => let MkIORes () w2 := writeByte pos b buf w
                       in go k (S ix) (sumEqLemma k ix prf) (pos + 1) buf w2
+
+--------------------------------------------------------------------------------
+--          Reading and Writing from and to Files
+--------------------------------------------------------------------------------
 
 export
 readBuffer :  HasIO io => Nat -> File -> io (Either FileError (k ** IBuffer k))
@@ -174,3 +195,27 @@ writeBuffer : HasIO io
             -> IBuffer n
             -> io (Either (FileError,Int) ())
 writeBuffer h o s (Buf buf) = writeBufferData h buf (cast o) (cast s)
+
+export
+readByteString :  HasIO io
+               => Nat
+               -> File
+               -> io (Either FileError ByteString)
+readByteString max f = do
+  Right (k ** buf) <- readBuffer max f | Left err => pure (Left err)
+  pure $ Right (BS k $ BV buf 0 refl)
+
+export %inline
+writeByteVect :  {n : _}
+              -> HasIO io
+              => File
+              -> ByteVect n
+              -> io (Either (FileError,Int) ())
+writeByteVect h (BV buf o _) = writeBuffer h o n buf
+
+export %inline
+writeByteString :  HasIO io
+                => File
+                -> ByteString
+                -> io (Either (FileError,Int) ())
+writeByteString h (BS n bs) = writeByteVect h bs
