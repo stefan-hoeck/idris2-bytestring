@@ -10,7 +10,7 @@ modules    = Data.Buffer.Index
            , Data.Buffer.Indexed
            , Data.Byte
            , Data.ByteString
-           , Data.ByteString.Indexed
+           , Data.ByteVect
            , Data.Nat.BSExtra
 
 sourcedir  = "src"

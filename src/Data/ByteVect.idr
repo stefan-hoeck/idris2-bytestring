@@ -1,4 +1,4 @@
-module Data.ByteString.Indexed
+module Data.ByteVect
 
 import Algebra.Solver.Semiring
 import public Data.Buffer.Indexed
@@ -8,110 +8,93 @@ import System.File
 
 %default total
 
---------------------------------------------------------------------------------
---          ByteString
---------------------------------------------------------------------------------
-
-||| Internally represented by a `Data.Buffer` together
-||| with its length and offset.
-|||
-||| The internal buffer is treated as being immutable,
-||| so operations modifying a `ByteString` will create
-||| and write to a new `Buffer`.
-public export
-data ByteString : Nat -> Type where
-  BS :  (buf    : IBuffer bufLen)
-     -> (offset : Nat)
-     -> (0 lte  : LTE (offset + len) bufLen)
-     -> ByteString len
-
-||| Reads the value of a `ByteString` at the given position
+||| Reads the value of a `ByteVect` at the given position
 export
-getByte : (x : Nat) -> (0 lt : LT x n) => ByteString n -> Bits8
-getByte x (BS buf o lte) =
+getByte : (x : Nat) -> (0 lt : LT x n) => ByteVect n -> Bits8
+getByte x (BV buf o lte) =
   byteAt (o + x) buf {lt = transitive (ltPlusRight o lt) lte}
 
-||| Reads the value of a `ByteString` at the given position
+||| Reads the value of a `ByteVect` at the given position
 export
-getByteFromEnd : {n : _} -> (x : Nat) -> (0 lt : LT x n) => ByteString n -> Bits8
-getByteFromEnd x (BS buf o lte) =
+getByteFromEnd : {n : _} -> (x : Nat) -> (0 lt : LT x n) => ByteVect n -> Bits8
+getByteFromEnd x (BV buf o lte) =
   byteFromEnd {end = o+n} x {lt = lteAddLeft o lt} buf
 
-||| Reads the value of a `ByteString` at the given position
+||| Reads the value of a `ByteVect` at the given position
 export %inline
-index : Index n -> ByteString n -> Bits8
+index : Index n -> ByteVect n -> Bits8
 index (Element k _) bs = getByte k bs
 
-||| Reads the value of a `ByteString` at the given position
+||| Reads the value of a `ByteVect` at the given position
 export %inline
-indexFromEnd : {n : _} -> Index n -> ByteString n -> Bits8
+indexFromEnd : {n : _} -> Index n -> ByteVect n -> Bits8
 indexFromEnd (Element x _) bs = getByteFromEnd x bs
 
 --------------------------------------------------------------------------------
 --          Making ByteStrings
 --------------------------------------------------------------------------------
 
-||| The empty `ByteString`.
+||| The empty `ByteVect`.
 export
-empty : ByteString 0
-empty = BS empty 0 %search
+empty : ByteVect 0
+empty = BV empty 0 %search
 
-||| Converts a list of values to a `ByteString` using
+||| Converts a list of values to a `ByteVect` using
 ||| the given conversion function. O(n).
 export
-fromList : (a -> Bits8) -> (as : List a) -> ByteString (length as)
-fromList f as = BS (fromList f as) 0 reflexive
+fromList : (a -> Bits8) -> (as : List a) -> ByteVect (length as)
+fromList f as = BV (fromList f as) 0 reflexive
 
-||| Converts a `String` to a `ByteString`. Note: This will
+||| Converts a `String` to a `ByteVect`. Note: This will
 ||| correctly decode the corresponding UTF-8 string.
 export
-fromString : (s : String) -> ByteString (cast $ stringByteLength s)
-fromString s = BS (fromString s) 0 reflexive
+fromString : (s : String) -> ByteVect (cast $ stringByteLength s)
+fromString s = BV (fromString s) 0 reflexive
 
-||| Converts a `ByteString` to a UTF-8 encoded string
+||| Converts a `ByteVect` to a UTF-8 encoded string
 export
-toString : {n : _} -> ByteString n -> String
-toString (BS buf o _) = toString buf o n
+toString : {n : _} -> ByteVect n -> String
+toString (BV buf o _) = toString buf o n
 
-||| Converts a list of `Bits8` values to a `ByteString`.
+||| Converts a list of `Bits8` values to a `ByteVect`.
 export %inline
-pack : (as : List Bits8) -> ByteString (length as)
+pack : (as : List Bits8) -> ByteVect (length as)
 pack = fromList id
 
-||| Creates a `ByteString` holding a single `Bits8` value.
+||| Creates a `ByteVect` holding a single `Bits8` value.
 export %inline
-singleton : Bits8 -> ByteString 1
+singleton : Bits8 -> ByteVect 1
 singleton v = pack [v]
 
-||| Convert a `ByteString` to a list of values using
+||| Convert a `ByteVect` to a list of values using
 ||| the given conversion function.
 export
-toList : {n : _} -> (Bits8 -> a) -> ByteString n -> List a
+toList : {n : _} -> (Bits8 -> a) -> ByteVect n -> List a
 toList f bs     = go Nil n
   where go : List a -> (x : Nat) -> (0 prf : LTE x n) => List a
         go xs 0     = xs
         go xs (S j) = go (f (getByte j bs) :: xs) j
 
-||| Converts a `ByteString` to a list of `Bits8` values. O(n).
+||| Converts a `ByteVect` to a list of `Bits8` values. O(n).
 export %inline
-unpack : {n : _} -> ByteString n -> List Bits8
+unpack : {n : _} -> ByteVect n -> List Bits8
 unpack = toList id
 
-||| Converts a `ByteString` to a String. All characters
+||| Converts a `ByteVect` to a String. All characters
 ||| will be in the range [0,255], so this does not perform
 ||| any character decoding.
 export %inline
-{n : Nat} -> Show (ByteString n) where
+{n : Nat} -> Show (ByteVect n) where
   showPrec p bs = showCon p "pack" (showArg $ toList id bs)
 
 --------------------------------------------------------------------------------
 --          Comparing ByteStrings
 --------------------------------------------------------------------------------
 
-||| Lexicographic comparison of `ByteString`s of distinct length
+||| Lexicographic comparison of `ByteVect`s of distinct length
 export
-hcomp : {m,n : Nat} -> ByteString m -> ByteString n -> Ordering
-hcomp (BS {bufLen = bl1} b1 o1 _) (BS {bufLen = bl2} b2 o2 _) = go m o1 n o2
+hcomp : {m,n : Nat} -> ByteVect m -> ByteVect n -> Ordering
+hcomp (BV {bufLen = bl1} b1 o1 _) (BV {bufLen = bl2} b2 o2 _) = go m o1 n o2
   where go : (c1,o1,c2,o2 : Nat)
            -> (0 _ : Offset c1 o1 bl1)
            => (0 _ : Offset c2 o2 bl2)
@@ -123,9 +106,9 @@ hcomp (BS {bufLen = bl1} b1 o1 _) (BS {bufLen = bl2} b2 o2 _) = go m o1 n o2
           EQ => go k (S o1) j (S o2)
           r  => r
 
-||| Heterogeneous equality for `ByteString`s
+||| Heterogeneous equality for `ByteVect`s
 export
-heq : {m,n : Nat} -> ByteString m -> ByteString n -> Bool
+heq : {m,n : Nat} -> ByteVect m -> ByteVect n -> Bool
 heq bs1 bs2 = hcomp bs1 bs2 == EQ
 
 --------------------------------------------------------------------------------
@@ -133,160 +116,145 @@ heq bs1 bs2 = hcomp bs1 bs2 == EQ
 --------------------------------------------------------------------------------
 
 export
-generate : (n : Nat) -> (Index n -> Bits8) -> ByteString n
-generate n f = BS (generate n f) 0 refl
+generate : (n : Nat) -> (Index n -> Bits8) -> ByteVect n
+generate n f = BV (generate n f) 0 refl
 
 export
-generateMaybe : (n : Nat) -> (Index n -> Maybe Bits8) -> (k ** ByteString k)
-generateMaybe n f =
-  let (k ** buf) := Buffer.Indexed.generateMaybe n f
-   in (k ** BS buf 0 refl)
-
-export
-replicate : (n : Nat) -> Bits8 -> ByteString n
+replicate : (n : Nat) -> Bits8 -> ByteVect n
 replicate n = generate n . const
 
 --------------------------------------------------------------------------------
 --          Concatenating ByteStrings
 --------------------------------------------------------------------------------
 
-||| Concatenate a list of `ByteString`. This allocates
-||| a buffer of sufficient size in advance, so it is much
-||| faster than `concat`, or `concatMap` for large `ByteString`s.
+||| Concatenate two `ByteVect`s. O(n + m).
 export
-fastConcat :  (bs : List (n ** ByteString n))
-           -> ByteString (totLength bs)
-fastConcat bs = BS (concatMany bs index) 0 refl
-
-||| Concatenate two `ByteString`s. O(n + m).
-export
-append : {m,n : _} -> ByteString m  -> ByteString n -> ByteString (m + n)
+append : {m,n : _} -> ByteVect m  -> ByteVect n -> ByteVect (m + n)
 append b1 b2 =
-  let 0 pp := solve [m,n]
-                (m .+ (n .+ 0))
-                (m .+. n)
-   in replace {p = ByteString} pp $ fastConcat [(m ** b1),(n ** b2)]
+  let 0 pp := solve [m,n] (m .+ (n .+ 0)) (m .+. n)
+      buf  := concatBuffer [BS m b1, BS n b2]
+   in replace {p = ByteVect} pp $ BV buf 0 refl
 
-||| Prepend a single `Bits8` to a `ByteString`. O(n).
+||| Prepend a single `Bits8` to a `ByteVect`. O(n).
 export %inline
-cons : {n : _} -> Bits8 -> ByteString n -> ByteString (S n)
+cons : {n : _} -> Bits8 -> ByteVect n -> ByteVect (S n)
 cons = append . singleton
 
-||| Append a single `Bits8` to a `ByteString`. O(n).
+||| Append a single `Bits8` to a `ByteVect`. O(n).
 export %inline
-snoc : {n : _} -> Bits8 -> ByteString n -> ByteString (n + 1)
+snoc : {n : _} -> Bits8 -> ByteVect n -> ByteVect (n + 1)
 snoc w bs = bs `append` singleton w
 
 --------------------------------------------------------------------------------
 --          Inspecting ByteStrings
 --------------------------------------------------------------------------------
 
-||| Read the first element of a `ByteString`. O(1).
+||| Read the first element of a `ByteVect`. O(1).
 export
-head : ByteString (S n) -> Bits8
+head : ByteVect (S n) -> Bits8
 head = getByte 0
 
-||| Drop the first `Bits8` from a `ByteString`. O(1).
+||| Drop the first `Bits8` from a `ByteVect`. O(1).
 export
-tail : ByteString (S n) -> ByteString n
-tail (BS buf o p) = BS buf (S o) (ltePlusSuccRight p)
+tail : ByteVect (S n) -> ByteVect n
+tail (BV buf o p) = BV buf (S o) (ltePlusSuccRight p)
 
-||| Split the first `Bits8` from a `ByteString`. O(1).
+||| Split the first `Bits8` from a `ByteVect`. O(1).
 export
-uncons : ByteString (S n) -> (Bits8, ByteString n)
+uncons : ByteVect (S n) -> (Bits8, ByteVect n)
 uncons bs = (head bs, tail bs)
 
-||| Read the last `Bits8` from a `ByteString`. O(1).
+||| Read the last `Bits8` from a `ByteVect`. O(1).
 export
-last : {n : _} -> ByteString (S n) -> Bits8
+last : {n : _} -> ByteVect (S n) -> Bits8
 last = getByte n
 
-||| Drop the last `Bits8` from a `ByteString`. O(1).
+||| Drop the last `Bits8` from a `ByteVect`. O(1).
 export
-init : ByteString (S n) -> ByteString n
-init (BS buf o p) = BS buf o (lteSuccLeft $ ltePlusSuccRight p)
+init : ByteVect (S n) -> ByteVect n
+init (BV buf o p) = BV buf o (lteSuccLeft $ ltePlusSuccRight p)
 
-||| Split a `ByteString` at the last byte. O(1).
+||| Split a `ByteVect` at the last byte. O(1).
 export
-unsnoc : {n : _} -> ByteString (S n) -> (Bits8, ByteString n)
+unsnoc : {n : _} -> ByteVect (S n) -> (Bits8, ByteVect n)
 unsnoc bs = (last bs, init bs)
 
 --------------------------------------------------------------------------------
 --          Mapping ByteStrings
 --------------------------------------------------------------------------------
 
-||| Converts every `Bits8` in a `ByteString` by applying the given
+||| Converts every `Bits8` in a `ByteVect` by applying the given
 ||| function. O(n).
 export
-map : {n : _} -> (Bits8 -> Bits8) -> ByteString n -> ByteString n
+map : {n : _} -> (Bits8 -> Bits8) -> ByteVect n -> ByteVect n
 map f bs = generate n (\x => f $ index x bs)
 
-||| Interpreting the values stored in a `ByteString` as 8 bit characters,
+||| Interpreting the values stored in a `ByteVect` as 8 bit characters,
 ||| convert every lower-case character to its upper-case form. O(n)
-export
-toUpper : {n : _} -> ByteString n -> ByteString n
-toUpper = map (cast . Prelude.toUpper . cast)
+export %inline
+toUpper : {n : _} -> ByteVect n -> ByteVect n
+toUpper = map toUpper
 
-||| Interpreting the values stored in a `ByteString` as 8 bit characters,
+||| Interpreting the values stored in a `ByteVect` as 8 bit characters,
 ||| convert every upper-case character to its lower-case form. O(n)
-export
-toLower : {n : _} -> ByteString n -> ByteString n
-toLower = map (cast . Prelude.toLower . cast)
+export %inline
+toLower : {n : _} -> ByteVect n -> ByteVect n
+toLower = map toLower
 
-||| Inverse the order of bytes in a `ByteString`. O(n)
+||| Inverse the order of bytes in a `ByteVect`. O(n)
 export
-reverse : {n : _} -> ByteString n -> ByteString n
+reverse : {n : _} -> ByteVect n -> ByteVect n
 reverse bs = generate n (\x => indexFromEnd x bs)
 
 ||| True, if the predicate holds for all bytes
-||| in the given `ByteString`. O(n)
+||| in the given `ByteVect`. O(n)
 export
-all : {n : _} -> (Bits8 -> Bool) -> ByteString n -> Bool
-all p (BS {bufLen} buf off lte) = go n off
+all : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> Bool
+all p (BV {bufLen} buf off lte) = go n off
   where go : (c, o : Nat) -> (0 off : Offset c o bufLen) => Bool
         go 0     o = True
         go (S k) o = if p (byteAtO o buf) then go k (S o) else False
 
 ||| True, if the predicate holds for at least one byte
-||| in the given `ByteString`. O(n)
+||| in the given `ByteVect`. O(n)
 export
-any : {n : _} -> (Bits8 -> Bool) -> ByteString n -> Bool
-any p (BS {bufLen} buf off lte) = go n off
+any : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> Bool
+any p (BV {bufLen} buf off lte) = go n off
   where go : (c, o : Nat) -> (0 _ : Offset c o bufLen) => Bool
         go 0     o = False
         go (S k) o = if p (byteAtO o buf) then True else go k (S o)
 
 
-||| True, if the given `Bits8` appears in the `ByteString`. O(n)
+||| True, if the given `Bits8` appears in the `ByteVect`. O(n)
 export %inline
-elem : {n : _} -> Bits8 -> ByteString n -> Bool
+elem : {n : _} -> Bits8 -> ByteVect n -> Bool
 elem b = any (b ==)
 
-||| Fold a `ByteString` from the left. O(n)
+||| Fold a `ByteVect` from the left. O(n)
 export
-foldl : {n : _} -> (a -> Bits8 -> a) -> a -> ByteString n -> a
-foldl f ini (BS {bufLen} buf off lte) = go n off ini
+foldl : {n : _} -> (a -> Bits8 -> a) -> a -> ByteVect n -> a
+foldl f ini (BV {bufLen} buf off lte) = go n off ini
   where go : (c,o : Nat) -> (v : a) -> (0 _ : Offset c o bufLen) => a
         go 0     o v = v
         go (S k) o v = go k (S o) (f v $ byteAtO o buf)
 
-||| Fold a `ByteString` from the right. O(n)
+||| Fold a `ByteVect` from the right. O(n)
 export
-foldr : {n : _} -> (Bits8 -> a -> a) -> a -> ByteString n -> a
+foldr : {n : _} -> (Bits8 -> a -> a) -> a -> ByteVect n -> a
 foldr f ini bs = go n ini
   where go : (k : Nat) -> (v : a) -> (0 lt : LTE k n) => a
         go 0     v = v
         go (S k) v = go k (f (getByte k bs) v)
 
-||| The `findIndex` function takes a predicate and a `ByteString` and
-||| returns the index of the first element in the ByteString
+||| The `findIndex` function takes a predicate and a `ByteVect` and
+||| returns the index of the first element in the ByteVect
 ||| satisfying the predicate. O(n)
 export
 findIndex :  {n : _}
           -> (Bits8 -> Bool)
-          -> ByteString n
+          -> ByteVect n
           -> Maybe (Subset Nat (`LT` n))
-findIndex p (BS {bufLen} buf off _) = go n off
+findIndex p (BV {bufLen} buf off _) = go n off
   where go :  (c,o : Nat)
            -> (0 _ : Offset c o bufLen)
            => (0 _ : LTE c n)
@@ -297,16 +265,16 @@ findIndex p (BS {bufLen} buf off _) = go n off
           False => go k (S o)
 
 ||| Return the index of the first occurence of the given
-||| byte in the `ByteString`, or `Nothing`, if the byte
-||| does not appear in the ByteString. O(n)
+||| byte in the `ByteVect`, or `Nothing`, if the byte
+||| does not appear in the ByteVect. O(n)
 export
-elemIndex : {n : _} -> Bits8 -> ByteString n -> Maybe (Index n)
+elemIndex : {n : _} -> Bits8 -> ByteVect n -> Maybe (Index n)
 elemIndex c = findIndex (c ==)
 
-||| Returns the first value byte in a `ByteString` fulfilling
+||| Returns the first value byte in a `ByteVect` fulfilling
 ||| the given predicate. O(n)
 export
-find : {n : _} -> (Bits8 -> Bool) -> ByteString n -> Maybe Bits8
+find : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> Maybe Bits8
 find p bs = (`index` bs) <$> findIndex p bs
 
 --------------------------------------------------------------------------------
@@ -315,9 +283,9 @@ find p bs = (`index` bs) <$> findIndex p bs
 
 findIndexOrLength :  {n : _}
                   -> (Bits8 -> Bool)
-                  -> ByteString n
+                  -> ByteVect n
                   -> SubLength n
-findIndexOrLength p (BS {bufLen} buf off _) = go n off
+findIndexOrLength p (BV {bufLen} buf off _) = go n off
   where go :  (c,o : Nat)
            -> (0 _ : Offset c o bufLen)
            => (0 _ : LTE c n)
@@ -326,8 +294,8 @@ findIndexOrLength p (BS {bufLen} buf off _) = go n off
         go (S k) o =
           if p (byteAtO o buf) then fromIndex (toEndIndex k) else go k (S o)
 
-findIndexOrLengthNL : {n : _} -> ByteString n -> SubLength n
-findIndexOrLengthNL (BS {bufLen} buf off _) = go n off
+findIndexOrLengthNL : {n : _} -> ByteVect n -> SubLength n
+findIndexOrLengthNL (BV {bufLen} buf off _) = go n off
   where go :  (c,o : Nat)
            -> (0 _ : Offset c o bufLen)
            => (0 _ : LTE c n)
@@ -337,7 +305,7 @@ findIndexOrLengthNL (BS {bufLen} buf off _) = go n off
           10 => fromIndex (toEndIndex k)
           _  => go k (S o)
 
-findFromEndUntil : {n : _} -> (Bits8 -> Bool) -> ByteString n -> SubLength n
+findFromEndUntil : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> SubLength n
 findFromEndUntil p bs = go n
   where go : (k : Nat) -> (0 lt : LTE k n) => SubLength n
         go 0     = Element 0 LTEZero
@@ -349,164 +317,152 @@ substrPrf p q =
    in transitive pp q
 
 ||| Like `substr` for `String`, this extracts a substring
-||| of the given `ByteString` at the given start position
+||| of the given `ByteVect` at the given start position
 ||| and of the given length. O(1).
 export
 substring :  (start,length : Nat)
-          -> ByteString n
+          -> ByteVect n
           -> (0 inBounds : LTE (start + length) n)
-          => ByteString length
+          => ByteVect length
 -- inBounds : start + len       <= n
 -- p        : o + n             <= bufLen
 -- required : (o + start) + len <= bufLen
-substring start len (BS buf o p) =
-  BS buf (o + start) (substrPrf inBounds p)
+substring start len (BV buf o p) =
+  BV buf (o + start) (substrPrf inBounds p)
 
 export
 mapMaybe :  {n : _}
          -> (Bits8 -> Maybe Bits8)
-         -> ByteString n
-         -> (k ** ByteString k)
+         -> ByteVect n
+         -> ByteString
 mapMaybe f bs = generateMaybe n (\x => f $ index x bs)
 
 export
 filter :  {n : _}
        -> (Bits8 -> Bool)
-       -> ByteString n
-       -> (k ** ByteString k)
+       -> ByteVect n
+       -> ByteString
 filter p = mapMaybe (\b => if p b then Just b else Nothing)
 
-||| Return a `ByteString` with the first `n` values of
+||| Return a `ByteVect` with the first `n` values of
 ||| the input string. O(1)
 export
-take : (0 k : Nat) -> (0 lt : LTE k n) => ByteString n -> ByteString k
-take k (BS buf o p) =
+take : (0 k : Nat) -> (0 lt : LTE k n) => ByteVect n -> ByteVect k
+take k (BV buf o p) =
   -- p        : o + n <= bufLen
   -- lt       : k     <= n
   -- required : o + k <= bufLen
-  BS buf o (transitive (ltePlusRight o lt) p)
+  BV buf o (transitive (ltePlusRight o lt) p)
 
-||| Return a `ByteString` with the last `n` values of
+||| Return a `ByteVect` with the last `n` values of
 ||| the input string. O(1)
 export
 takeEnd :  {n : _}
         -> (k : Nat)
         -> (0 lt : LTE k n)
-        => ByteString n
-        -> ByteString k
-takeEnd k (BS buf o p) =
+        => ByteVect n
+        -> ByteVect k
+takeEnd k (BV buf o p) =
   -- p        : o + n             <= bufLen
   -- lt       : k                 <= n
   -- required : ((o + n) - k) + k <= bufLen
   let 0 q := plusMinus' k (o + n) (lteAddLeft o lt)
-   in BS buf ((o + n) `minus` k) (rewrite q in p)
+   in BV buf ((o + n) `minus` k) (rewrite q in p)
 
-||| Remove the first `n` values from a `ByteString`. O(1)
+||| Remove the first `n` values from a `ByteVect`. O(1)
 export
 drop :  (k : Nat)
      -> (0 lt : LTE k n)
-     => ByteString n
-     -> ByteString (n `minus` k)
-drop k (BS buf o p) =
+     => ByteVect n
+     -> ByteVect (n `minus` k)
+drop k (BV buf o p) =
   -- p        : o + n             <= bufLen
   -- lt       : k                 <= n
   -- required : (o + k) + (n - k) <= bufLen
   let 0 q := cong (o +) (plusMinus k n lt)
       0 r := plusAssociative o k (n `minus` k)
-   in BS buf (o + k) (rewrite (trans (sym r) q) in p)
+   in BV buf (o + k) (rewrite (trans (sym r) q) in p)
 
-||| Remove the last `n` values from a `ByteString`. O(1)
+||| Remove the last `n` values from a `ByteVect`. O(1)
 export
 dropEnd :  (0 k : Nat)
         -> (0 lt : LTE k n)
-        => ByteString n
-        -> ByteString (n `minus` k)
-dropEnd k (BS buf o p) =
+        => ByteVect n
+        -> ByteVect (n `minus` k)
+dropEnd k (BV buf o p) =
   -- p        : o + n       <= bufLen
   -- lt       : k           <= n
   -- required : o + (n - k) <= bufLen
-  BS buf o (transitive (ltePlusRight o $ minusLTE n k) p)
+  BV buf o (transitive (ltePlusRight o $ minusLTE n k) p)
 
 export
 splitAt :  {n : _}
         -> (k : Nat)
         -> (0 lte : LTE k n)
-        => ByteString n
-        -> (ByteString k, ByteString (n `minus` k))
+        => ByteVect n
+        -> (ByteVect k, ByteVect (n `minus` k))
 splitAt k bs = (take k bs, drop k bs)
 
 ||| Extracts the longest prefix of elements satisfying the
 ||| predicate.
 export
-takeWhile : {n : _} -> (Bits8 -> Bool) -> ByteString n -> (k ** ByteString k)
+takeWhile : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> ByteString
 takeWhile p bs =
   let Element k _ = findIndexOrLength (not . p) bs
-   in (k ** take k bs)
+   in BS k $ take k bs
 
 ||| Returns the longest (possibly empty) suffix of elements
 ||| satisfying the predicate.
 export
-takeWhileEnd :  {n : _}
-             -> (Bits8 -> Bool)
-             -> ByteString n
-             -> (k ** ByteString k)
+takeWhileEnd : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> ByteString
 takeWhileEnd f bs =
   let Element k _ = findFromEndUntil (not . f) bs
-   in (_ ** drop k bs)
+   in BS _ $ drop k bs
 
 ||| Drops the longest (possibly empty) prefix of elements
 ||| satisfying the predicate and returns the remainder.
 export
-dropWhile :  {n : _}
-          -> (Bits8 -> Bool)
-          -> ByteString n
-          -> (k ** ByteString k)
+dropWhile : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> ByteString
 dropWhile f bs =
   let Element k _ = findIndexOrLength (not . f) bs
-   in (_ ** drop k bs)
+   in BS _ $ drop k bs
 
 ||| Drops the longest (possibly empty) suffix of elements
 ||| satisfying the predicate and returns the remainder.
 export
-dropWhileEnd :  {n : _}
-             -> (Bits8 -> Bool)
-             -> ByteString n
-             -> (k ** ByteString k)
+dropWhileEnd : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> ByteString
 dropWhileEnd f bs =
   let Element k _ = findFromEndUntil (not . f) bs
-   in (k ** take k bs)
+   in BS k $ take k bs
 
 ||| Remove leading whitespace from a `ByteString`
 export
-trimLeft : {n : _} -> ByteString n -> (k ** ByteString k)
+trimLeft : {n : _} -> ByteVect n -> ByteString
 trimLeft = dropWhile isSpace
 
 ||| Remove trailing whitespace from a `ByteString`
 export
-trimRight : {n : _} -> ByteString n -> (k ** ByteString k)
+trimRight : {n : _} -> ByteVect n -> ByteString
 trimRight = dropWhileEnd isSpace
 
 ||| Remove all leading and trailing whitespace from a `ByteString`
 export
-trim : {n : _} -> ByteString n -> (k ** ByteString k)
-trim bs = let (k ** bs') := trimLeft bs in trimRight bs'
+trim : {n : _} -> ByteVect n -> ByteString
+trim bs = let BS k bs' := trimLeft bs in trimRight bs'
 
 public export
 record BreakRes (n : Nat) where
   constructor MkBreakRes
   lenFst : Nat
   lenSnd : Nat
-  fst    : ByteString lenFst
-  snd    : ByteString lenSnd
+  fst    : ByteVect lenFst
+  snd    : ByteVect lenSnd
   0 prf  : lenFst + lenSnd === n
 
 ||| Returns the longest (possibly empty) prefix of elements which do not
 ||| satisfy the predicate and the remainder of the string.
 export
-break :  {n : _}
-      -> (Bits8 -> Bool)
-      -> ByteString n
-      -> BreakRes n
+break : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> BreakRes n
 break p bs =
   let Element k _ = findIndexOrLength p bs
       bs1 = take k bs
@@ -515,7 +471,7 @@ break p bs =
 
 ||| Returns the longest (possibly empty) prefix before the first newline character
 export
-breakNL : {n : _} -> ByteString n -> BreakRes n
+breakNL : {n : _} -> ByteVect n -> BreakRes n
 breakNL bs =
   let Element k _ = findIndexOrLengthNL bs
       bs1 = take k bs
@@ -525,10 +481,7 @@ breakNL bs =
 ||| Returns the longest (possibly empty) suffix of elements which do not
 ||| satisfy the predicate and the remainder of the string.
 export
-breakEnd :  {n : _}
-         -> (Bits8 -> Bool)
-         -> ByteString n
-         -> BreakRes n
+breakEnd : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> BreakRes n
 breakEnd  p bs =
   let Element k _ = findFromEndUntil p bs
       bs1 = take k bs
@@ -538,83 +491,50 @@ breakEnd  p bs =
 ||| Returns the longest (possibly empty) prefix of elements
 ||| satisfying the predicate and the remainder of the string.
 export %inline
-span :  {n : _}
-     -> (Bits8 -> Bool)
-     -> ByteString n
-     -> BreakRes n
+span : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> BreakRes n
 span p = break (not . p)
 
 ||| Returns the longest (possibly empty) suffix of elements
 ||| satisfying the predicate and the remainder of the string.
 export
-spanEnd :  {n : _}
-        -> (Bits8 -> Bool)
-        -> ByteString n
-        -> BreakRes n
+spanEnd : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> BreakRes n
 spanEnd p bs =
   let Element k _ = findFromEndUntil (not . p) bs
       bs1 = take k bs
       bs2 = drop k bs
    in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinus k n %search)
 
-||| Splits a 'ByteString' into components delimited by
+||| Splits a 'ByteVect' into components delimited by
 ||| separators, where the predicate returns True for a separator element.
 ||| The resulting components do not contain the separators. Two adjacent
 ||| separators result in an empty component in the output. eg.
 export
 splitWith :  {n : _}
           -> (Bits8 -> Bool)
-          -> ByteString n
-          -> List (k ** ByteString k)
+          -> ByteVect n
+          -> List ByteString
 splitWith p bs = go Lin n bs
-  where go :  SnocList (k ** ByteString k)
-           -> (m : Nat)
-           -> ByteString m
-           -> List (k ** ByteString k)
+  where go : SnocList ByteString -> (m : Nat) -> ByteVect m -> List ByteString
         go sb m bs' = case break p bs' of
-          MkBreakRes l1 0      b1 _  prf => sb <>> [(l1 ** b1)]
+          MkBreakRes l1 0      b1 _  prf => sb <>> [BS l1 b1]
           MkBreakRes l1 (S l2) b1 b2 prf =>
-            go (sb :< (l1 ** b1)) (assert_smaller m l2) (tail b2)
+            go (sb :< BS l1 b1) (assert_smaller m l2) (tail b2)
 
-||| Break a `ByteString` into pieces separated by the byte
+||| Break a `ByteVect` into pieces separated by the byte
 ||| argument, consuming the delimiter.
 |||
 ||| As for all splitting functions in this library, this function does
 ||| not copy the substrings, it just constructs new `ByteString`s that
 ||| are slices of the original.
 export %inline
-split : {n : _} -> Bits8 -> ByteString n -> List (k ** ByteString k)
+split : {n : _} -> Bits8 -> ByteVect n -> List ByteString
 split b = splitWith (b ==)
 
 export
-lines : {n : _} -> ByteString n -> List (k ** ByteString k)
+lines : {n : _} -> ByteVect n -> List ByteString
 lines bs = go Lin n bs
-  where go :  SnocList (k ** ByteString k)
-           -> (m : Nat)
-           -> ByteString m
-           -> List (k ** ByteString k)
+  where go : SnocList ByteString -> (m : Nat) -> ByteVect m -> List ByteString
         go sb m bs' = case breakNL bs' of
-          MkBreakRes l1 0      b1 _  prf => sb <>> [(l1 ** b1)]
+          MkBreakRes l1 0      b1 _  prf => sb <>> [BS l1 b1]
           MkBreakRes l1 (S l2) b1 b2 prf =>
-            go (sb :< (l1 ** b1)) (assert_smaller m l2) (tail b2)
-
---------------------------------------------------------------------------------
---          Reading and Writing from and to Files
---------------------------------------------------------------------------------
-
-export
-readByteString :  HasIO io
-               => Nat
-               -> File
-               -> io (Either FileError (k ** ByteString k))
-readByteString max f = do
-  Right (k ** buf) <- readBuffer max f | Left err => pure (Left err)
-  pure $ Right (k ** BS buf 0 refl)
-
-export
-writeByteString :  {n : _}
-                -> HasIO io
-                => File
-                -> ByteString n
-                -> io (Either (FileError,Int) ())
-writeByteString h (BS buf o _) = writeBuffer h o n buf
+            go (sb :< BS l1 b1) (assert_smaller m l2) (tail b2)

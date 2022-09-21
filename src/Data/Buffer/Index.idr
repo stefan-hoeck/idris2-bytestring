@@ -13,6 +13,9 @@ import Data.Nat.BSExtra
 ||| An efficient alternative to `Fin n`.
 ||| This allows for safe and efficient indexing into
 ||| length indexed arrays and buffers.
+|||
+||| Casts to `Integer`, arithmetic operations, and comparisons
+||| are guaranteed to be O(1) for valid lengths of byte vectors.
 public export
 0 Index : Nat -> Type
 Index n = Subset Nat (`LT` n)
