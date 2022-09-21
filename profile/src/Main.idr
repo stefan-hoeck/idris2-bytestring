@@ -3,7 +3,8 @@ module Main
 import Data.Buffer.Index
 import Data.Buffer.Indexed
 import Data.Nat.BSExtra
-import Data.ByteString.Indexed
+import Data.ByteString
+import Data.ByteVect
 import Data.List
 import Data.List1
 import Data.String
@@ -25,7 +26,7 @@ toDigit 55 = 7
 toDigit 56 = 8
 toDigit _  = 9
 
-bs : (n : Nat) -> ByteString (S n)
+bs : (n : Nat) -> ByteVect (S n)
 bs n = generate (S n) $ \case (Element x _) => if x == n then 10 else 0
 
 bl : (n : Nat) -> List Bits8
@@ -34,7 +35,7 @@ bl n = unpack $ bs n
 str : Nat -> String
 str n = pack $ map toChar (bl n)
 
-bs_lines : (n : Nat) -> ByteString (S n)
+bs_lines : (n : Nat) -> ByteVect (S n)
 bs_lines n =
   generate (S n) $ \ix =>
     case cast (fst ix) `mod` 100 of
@@ -47,7 +48,7 @@ list_lines n = unpack $ bs_lines n
 string_lines : (n : Nat) -> String
 string_lines n = pack $ map toChar (list_lines n)
 
-bs_digits : (n : Nat) -> ByteString (S n)
+bs_digits : (n : Nat) -> ByteVect (S n)
 bs_digits n = generate (S n) $ \x => 48 + (cast (fst x) `mod` 10)
 
 list_digits : (n : Nat) -> List Bits8
@@ -56,8 +57,8 @@ list_digits n = unpack $ bs_digits n
 string_digits : (n : Nat) -> String
 string_digits n = pack $ map cast (list_digits n)
 
-bs_trim : (n : Nat) -> ByteString (3 + S n + 3)
-bs_trim n = fastConcat [(3 ** "   "), (S n ** bs_digits n), (3 ** "   ")]
+bs_trim : (n : Nat) -> ByteString
+bs_trim n = ByteString.fastConcat [the ByteString "   ", BS (S n) (bs_digits n), "   "]
 
 list_trim : (n : Nat) -> List Bits8
 list_trim n = unpack $ bs_trim n
@@ -65,8 +66,8 @@ list_trim n = unpack $ bs_trim n
 string_trim : (n : Nat) -> String
 string_trim n = pack $ map cast (list_trim n)
 
-bsParseNat : {n : _} -> ByteString n -> Nat
-bsParseNat (BS {bufLen} buf off _) = go 0 n off
+bsParseNat : {n : _} -> ByteVect n -> Nat
+bsParseNat (BV {bufLen} buf off _) = go 0 n off
   where go : (acc,c,o : Nat) -> (0 _ : Offset c o bufLen) => Nat
         go acc 0     _ = acc
         go acc (S k) o =

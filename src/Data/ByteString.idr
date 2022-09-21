@@ -357,6 +357,21 @@ spanEnd p (BS n bs) =
   let MkBreakRes n1 n2 bs1 bs2 _ := spanEnd p bs
    in (BS n1 bs1, BS n2 bs2)
 
+||| Remove leading whitespace from a `ByteString`
+export %inline
+trimLeft : ByteString -> ByteString
+trimLeft (BS _ bv) = trimLeft bv
+
+||| Remove trailing whitespace from a `ByteString`
+export %inline
+trimRight : ByteString -> ByteString
+trimRight (BS _ bv) = trimRight bv
+
+||| Remove all leading and trailing whitespace from a `ByteString`
+export %inline
+trim : ByteString -> ByteString
+trim (BS _ bv) = trim bv
+
 ||| Splits a 'ByteString' into components delimited by
 ||| separators, where the predicate returns True for a separator element.
 ||| The resulting components do not contain the separators. Two adjacent
