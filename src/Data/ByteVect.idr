@@ -277,6 +277,29 @@ export
 find : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> Maybe Bits8
 find p bs = (`index` bs) <$> findIndex p bs
 
+export
+isPrefixOf : {m,n : _} -> ByteVect m -> ByteVect n -> Bool
+isPrefixOf (BV {bufLen = bl1} b o _) (BV {bufLen = bl2} b' o' _) = go m o n o'
+  where go :  (c1,o1,c2,o2 : Nat)
+           -> (0 _ : Offset c1 o1 bl1)
+           => (0 _ : Offset c2 o2 bl2)
+           => Bool
+        go 0     _  _     _  = True
+        go _     _  0     _  = False
+        go (S x) o1 (S y) o2 = case byteAtO o1 b == byteAtO o2 b' of
+          True  => go x (S o1) y (S o2)
+          False => False
+
+export
+isSuffixOf : {m,n : _} -> ByteVect m -> ByteVect n -> Bool
+isSuffixOf bv1 bv2 = go m n
+  where go : (o1,o2 : Nat) -> (0 _ : LTE o1 m) => (0 _ : LTE o2 n) => Bool
+        go 0     _     = True
+        go _     0     = False
+        go (S x) (S y) = case getByte x bv1 == getByte y bv2 of
+          True  => go x y
+          False => False
+
 --------------------------------------------------------------------------------
 --          Substrings
 --------------------------------------------------------------------------------
@@ -538,3 +561,14 @@ lines bs = go Lin n bs
           MkBreakRes l1 0      b1 _  prf => sb <>> [BS l1 b1]
           MkBreakRes l1 (S l2) b1 b2 prf =>
             go (sb :< BS l1 b1) (assert_smaller m l2) (tail b2)
+
+export
+isInfixOf : {m,n : _} -> ByteVect m -> ByteVect n -> Bool
+isInfixOf bv1 bv2 = m == 0 || go n 0
+  where go : (c,o : Nat) -> (0 os : Offset c o n) => Bool
+        go 0     _ = False
+        go (S k) o =
+          let 0 prf := offsetLTE os
+           in case isPrefixOf bv1 (drop o bv2) of
+                True  => True
+                False => go k (S o)

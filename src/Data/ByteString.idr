@@ -241,6 +241,18 @@ export %inline
 find : (Bits8 -> Bool) -> ByteString -> Maybe Bits8
 find p (BS n bs) = find p bs
 
+export %inline
+isInfixOf : ByteString -> ByteString -> Bool
+isInfixOf (BS _ bv1) (BS _ bv2) = isInfixOf bv1 bv2
+
+export %inline
+isPrefixOf : ByteString -> ByteString -> Bool
+isPrefixOf (BS _ bv1) (BS _ bv2) = isPrefixOf bv1 bv2
+
+export %inline
+isSuffixOf : ByteString -> ByteString -> Bool
+isSuffixOf (BS _ bv1) (BS _ bv2) = isSuffixOf bv1 bv2
+
 --------------------------------------------------------------------------------
 --          Substrings
 --------------------------------------------------------------------------------
