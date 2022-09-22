@@ -205,6 +205,21 @@ prop_breakFirst = property $ do
   let (a,b) = break (< 100) bs
   assert $ all (>= 100) a
 
+prop_infix : Property
+prop_infix = property $ do
+  [bs1,bs2] <- forAll $ np [bytestring,bytestring]
+  isInfixOf bs1 bs2 === isInfixOf (unpack bs1) (unpack bs2)
+
+prop_prefix : Property
+prop_prefix = property $ do
+  [bs1,bs2] <- forAll $ np [bytestring,bytestring]
+  isPrefixOf bs1 bs2 === isPrefixOf (unpack bs1) (unpack bs2)
+
+prop_suffix : Property
+prop_suffix = property $ do
+  [bs1,bs2] <- forAll $ np [bytestring,bytestring]
+  isSuffixOf bs1 bs2 === isSuffixOf (unpack bs1) (unpack bs2)
+
 
 main : IO ()
 main = test . pure $ MkGroup "ByteString"
@@ -237,4 +252,7 @@ main = test . pure $ MkGroup "ByteString"
   , ("prop_dropWhileEnd", prop_dropWhileEnd)
   , ("prop_breakAppend", prop_breakAppend)
   , ("prop_breakFirst", prop_breakFirst)
+  , ("prop_infix", prop_infix)
+  , ("prop_prefix", prop_prefix)
+  , ("prop_suffix", prop_suffix)
   ]
