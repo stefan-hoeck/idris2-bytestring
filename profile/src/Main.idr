@@ -5,6 +5,7 @@ import Data.Buffer.Indexed
 import Data.Nat.BSExtra
 import Data.ByteString
 import Data.ByteVect
+import Data.Byte
 import Data.List
 import Data.List1
 import Data.String
@@ -13,18 +14,6 @@ import Profile
 toChar : Bits8 -> Char
 toChar 10 = '\n'
 toChar _  = 'a'
-
-toDigit : Bits8 -> Nat
-toDigit 48 = 0
-toDigit 49 = 1
-toDigit 50 = 2
-toDigit 51 = 3
-toDigit 52 = 4
-toDigit 53 = 5
-toDigit 54 = 6
-toDigit 55 = 7
-toDigit 56 = 8
-toDigit _  = 9
 
 bs : (n : Nat) -> ByteVect (S n)
 bs n = generate (S n) $ \case (Element x _) => if x == n then 10 else 0
@@ -66,19 +55,8 @@ list_trim n = unpack $ bs_trim n
 string_trim : (n : Nat) -> String
 string_trim n = pack $ map cast (list_trim n)
 
-bsParseNat : {n : _} -> ByteVect n -> Nat
-bsParseNat (BV {bufLen} buf off _) = go 0 n off
-  where go : (acc,c,o : Nat) -> (0 _ : Offset c o bufLen) => Nat
-        go acc 0     _ = acc
-        go acc (S k) o =
-          let acc' := acc * 10 + toDigit (byteAtO o buf)
-           in go acc' k (S o)
-
-listParseNat : List Bits8 -> Nat
-listParseNat = foldl (\v,b => v * 10 + toDigit b) 0
-
-stringParseNat : String -> Nat
-stringParseNat = fromMaybe 0 . parsePositive
+stringParseInt : String -> Maybe Integer
+stringParseInt = parseInteger
 
 find : Nat -> Benchmark Void
 find n = Group "find \{show n}" [
@@ -103,9 +81,8 @@ lines n = Group "break \{show n}" [
 
 foldl : Nat -> Benchmark Void
 foldl n = Group "parseNat \{show n}" [
-   Single "bsParseNat"     $ basic bsParseNat     (bs_digits n)
- , Single "listParseNat"   $ basic listParseNat   (list_digits  n)
- , Single "stringParseNat" $ basic stringParseNat (string_digits n)
+   Single "parseInteger"   $ basic parseInteger (bs_digits n)
+ , Single "stringParseInt" $ basic stringParseInt (string_digits n)
  ]
 
 trim : Nat -> Benchmark Void
