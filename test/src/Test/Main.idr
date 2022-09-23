@@ -1,9 +1,11 @@
 module Test.Main
 
 import Data.Buffer.Indexed
+import Data.Byte
 import Data.ByteString
 import Data.List
 import Data.Maybe
+import Data.String
 import Data.SOP
 import Data.Vect
 import Hedgehog
@@ -31,6 +33,49 @@ bytestring =
 
 asciiString : Gen String
 asciiString = string (linear 0 30) ascii
+
+digit : Gen Bits8
+digit = bits8 $ linear byte_0 byte_9
+
+digit1 : Gen Bits8
+digit1 = bits8 $ linear (byte_0 + 1) byte_9
+
+natString : Gen (List Bits8)
+natString = [| digit1 :: list (linear 0 20) digit |]
+
+intString : Gen (List Bits8)
+intString =
+  let pre : Gen (List Bits8)
+      pre = element [[], [43], [45]]
+   in [| pre ++ natString |]
+
+expString : Gen (List Bits8)
+expString =
+  let pre : Gen (List Bits8)
+      pre =
+        element $ map (map cast . Prelude.unpack)
+          ["", "E", "E+", "E-", "e", "e+", "e-", "+", "-"]
+
+      nat : Gen (List Bits8)
+      nat = [| digit1 :: list (linear 0 1) digit |]
+   in [| pre ++ nat |]
+
+dblString : Gen (List Bits8)
+dblString =
+  let dot : List Bits8 -> List Bits8 -> List Bits8
+      dot xs ys = xs ++ [46] ++ ys
+
+      exp : List Bits8 -> List Bits8 -> List Bits8
+      exp xs es = xs ++ es
+
+      dotExp : List Bits8 -> List Bits8 -> List Bits8 -> List Bits8
+      dotExp xs ys ex = xs ++ [46] ++ ys ++ ex
+   in choice
+        [ intString
+        , [| dot    intString natString |]
+        , [| exp    intString expString |]
+        , [| dotExp intString natString expString |]
+        ]
 
 --------------------------------------------------------------------------------
 --          Properties
@@ -220,6 +265,33 @@ prop_suffix = property $ do
   [bs1,bs2] <- forAll $ np [bytestring,bytestring]
   isSuffixOf bs1 bs2 === isSuffixOf (unpack bs1) (unpack bs2)
 
+prop_parseDecimalNat : Property
+prop_parseDecimalNat = property $ do
+  bits <- forAll natString
+  parseDecimalNat (pack bits) === parsePositive (pack $ map cast bits)
+
+prop_parseInteger : Property
+prop_parseInteger = property $ do
+  bits <- forAll intString
+  parseInteger (pack bits) === String.parseInteger (pack $ map cast bits)
+
+doubleEq : Maybe Double -> Maybe Double -> Bool
+doubleEq Nothing  Nothing  = True
+doubleEq (Just x) (Just y) =
+  let div = max (abs x) (abs y)
+   in div == 0.0 || abs ((x - y) / div) < 1.0e-14
+doubleEq _        _        = False
+
+prop_parseDouble : Property
+prop_parseDouble = property $ do
+  bits <- forAll dblString
+  let str := Prelude.pack $ map cast bits
+      mx  := parseDouble (pack bits)
+      my  := String.parseDouble str
+  footnote "string: \{str}"
+  footnote "mx: \{show mx}"
+  footnote "my: \{show my}"
+  doubleEq mx my === True
 
 main : IO ()
 main = test . pure $ MkGroup "ByteString"
@@ -255,4 +327,7 @@ main = test . pure $ MkGroup "ByteString"
   , ("prop_infix", prop_infix)
   , ("prop_prefix", prop_prefix)
   , ("prop_suffix", prop_suffix)
+  , ("prop_parseDecimalNat", prop_parseDecimalNat)
+  , ("prop_parseInteger", prop_parseInteger)
+  , ("prop_parseDouble", prop_parseDouble)
   ]

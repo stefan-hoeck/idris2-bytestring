@@ -572,3 +572,96 @@ isInfixOf bv1 bv2 = m == 0 || go n 0
            in case isPrefixOf bv1 (drop o bv2) of
                 True  => True
                 False => go k (S o)
+
+--------------------------------------------------------------------------------
+--          Parsing Numbers
+--------------------------------------------------------------------------------
+
+||| Parse a natural number in the given base.
+export
+parseAnyNat :  {n : _}
+            -> (base : Nat)
+            -> (0 p1 : LTE 2 base)
+            => (0 p2 : LTE base 16)
+            => ByteVect n
+            -> Maybe Nat
+parseAnyNat {n = Z} _ bv = Nothing
+parseAnyNat base (BV {bufLen} buf off _) = go n off 0
+  where go : (c,o,res : Nat) -> (0 os : Offset c o bufLen) => Maybe Nat
+        go 0     o res = Just res
+        go (S k) o res =
+          let Just n := fromHexDigit $ byteAtO o buf | Nothing => Nothing
+           in if n < base then go k (S o) (res * base + n) else Nothing
+
+||| Parses a natural number in decimal notation.
+export %inline
+parseDecimalNat : {n : _} -> ByteVect n -> Maybe Nat
+parseDecimalNat = parseAnyNat 10
+
+export %inline
+parseHexadecimalNat : {n : _} -> ByteVect n -> Maybe Nat
+parseHexadecimalNat = parseAnyNat 10
+
+export %inline
+parseOctalNat : {n : _} -> ByteVect n -> Maybe Nat
+parseOctalNat = parseAnyNat 8
+
+export %inline
+parseBinaryNat : {n : _} -> ByteVect n -> Maybe Nat
+parseBinaryNat = parseAnyNat 2
+
+export
+parseInteger : {n : _} -> ByteVect n -> Maybe Integer
+parseInteger {n = Z}   _  = Nothing
+parseInteger {n = S _} bv = case head bv of
+  43 => cast          <$> parseDecimalNat (tail bv) -- '+'
+  45 => negate . cast <$> parseDecimalNat (tail bv) -- '-'
+  _  => cast <$> parseDecimalNat bv
+
+
+-- parsing Double
+
+isE : Bits8 -> Bool
+isE 69  = True
+isE 101 = True
+isE _   = False
+
+fract : {n : _} -> ByteVect n -> Maybe Double
+fract bv =
+  let Just k := parseDecimalNat bv | Nothing => Nothing
+   in Just (cast k / (pow 10 $ cast n))
+
+exp : {n : _} -> ByteVect n -> Maybe Double
+exp bv =
+  let Just exp := parseInteger bv | Nothing => Nothing
+   in Just $ pow 10.0 (cast exp)
+
+parsePosDbl : {n : _} -> ByteVect n -> Maybe Double
+parsePosDbl bv = case break isDot bv of
+  MkBreakRes lf (S _) pre pst _ => case break isE (tail pst) of
+    MkBreakRes _ (S _) fractStr expStr _ =>
+      let Just x := parseDecimalNat pre | Nothing => Nothing
+          Just y := fract fractStr      | Nothing => Nothing
+          Just e := exp (tail expStr)   | Nothing => Nothing
+       in Just $ (cast x + y) * e
+    MkBreakRes _ 0     fractStr _   _ =>
+      let Just x := parseDecimalNat pre | Nothing => Nothing
+          Just y := fract fractStr      | Nothing => Nothing
+       in Just $ cast x + y
+
+  MkBreakRes lf 0     pre _   _ => case break isE pre of
+    MkBreakRes _ (S _) natStr expStr _ =>
+      let Just x := parseDecimalNat natStr | Nothing => Nothing
+          Just e := exp (tail expStr)      | Nothing => Nothing
+       in Just $ cast x * e
+    MkBreakRes _ 0     _      _   _ =>
+      let Just x := parseDecimalNat pre | Nothing => Nothing
+       in Just $ cast x
+
+export
+parseDouble : {n : _} -> ByteVect n -> Maybe Double
+parseDouble {n = Z}   _  = Nothing
+parseDouble {n = S _} bv = case head bv of
+  43 => parsePosDbl (tail bv)             -- '+'
+  45 => negate  <$> parsePosDbl (tail bv) -- '-'
+  _  => parsePosDbl bv

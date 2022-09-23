@@ -115,3 +115,85 @@ isOctDigit x = inRange byte_0 byte_7 x
 public export
 isControl : Bits8 -> Bool
 isControl x = inRange 0 0x1f x
+
+||| Returns true if the character equal the '.' ASCII character
+public export
+isDot : Bits8 -> Bool
+isDot 46 = True
+isDot _  = False
+
+||| Returns true if the character equal the ',' ASCII character
+public export
+isComma : Bits8 -> Bool
+isComma 44 = True
+isComma _  = False
+
+||| Try to convert a bit digit ('0' or '1') to
+||| the natural number `0` or `1`.
+public export
+fromBitDigit : Bits8 -> Maybe Nat
+fromBitDigit 48 = Just 0
+fromBitDigit 49 = Just 1
+fromBitDigit _  = Nothing
+
+||| Try to convert an ocatal digit to
+||| the corresponding natural number.
+public export
+fromOctDigit : Bits8 -> Maybe Nat
+fromOctDigit 48 = Just 0
+fromOctDigit 49 = Just 1
+fromOctDigit 50 = Just 2
+fromOctDigit 51 = Just 3
+fromOctDigit 52 = Just 4
+fromOctDigit 53 = Just 5
+fromOctDigit 54 = Just 6
+fromOctDigit 55 = Just 7
+fromOctDigit _  = Nothing
+
+||| Try to convert a decimal digit to
+||| the corresponding natural number.
+|||
+||| Implementation note: Profiling showed that a direct
+||| pattern match on the input is considerable faster
+||| than using subtraction together with `isDigit`.
+public export
+fromDigit : Bits8 -> Maybe Nat
+fromDigit 48 = Just 0
+fromDigit 49 = Just 1
+fromDigit 50 = Just 2
+fromDigit 51 = Just 3
+fromDigit 52 = Just 4
+fromDigit 53 = Just 5
+fromDigit 54 = Just 6
+fromDigit 55 = Just 7
+fromDigit 56 = Just 8
+fromDigit 57 = Just 9
+fromDigit _  = Nothing
+
+||| Try to convert a hexadecimal digit to
+||| the corresponding natural number.
+public export
+fromHexDigit : Bits8 -> Maybe Nat
+fromHexDigit 48  = Just 0
+fromHexDigit 49  = Just 1
+fromHexDigit 50  = Just 2
+fromHexDigit 51  = Just 3
+fromHexDigit 52  = Just 4
+fromHexDigit 53  = Just 5
+fromHexDigit 54  = Just 6
+fromHexDigit 55  = Just 7
+fromHexDigit 56  = Just 8
+fromHexDigit 57  = Just 9
+fromHexDigit 97  = Just 10
+fromHexDigit 98  = Just 11
+fromHexDigit 99  = Just 12
+fromHexDigit 100 = Just 13
+fromHexDigit 101 = Just 14
+fromHexDigit 102 = Just 15
+fromHexDigit 65  = Just 10
+fromHexDigit 66  = Just 11
+fromHexDigit 67  = Just 12
+fromHexDigit 68  = Just 13
+fromHexDigit 69  = Just 14
+fromHexDigit 70  = Just 15
+fromHexDigit _   = Nothing

@@ -401,3 +401,41 @@ splitWith p (BS n bs) = splitWith p bs
 export %inline
 split : Bits8 -> ByteString -> List ByteString
 split b = splitWith (b ==)
+
+--------------------------------------------------------------------------------
+--          Parsing Numbers
+--------------------------------------------------------------------------------
+
+||| Parse a natural number in the given base.
+export %inline
+parseAnyNat :  (base : Nat)
+            -> (0 p1 : LTE 2 base)
+            => (0 p2 : LTE base 16)
+            => ByteString
+            -> Maybe Nat
+parseAnyNat base (BS _ bv) = parseAnyNat base bv
+
+||| Parses a natural number in decimal notation.
+export %inline
+parseDecimalNat : ByteString -> Maybe Nat
+parseDecimalNat (BS _ bv) = parseDecimalNat bv
+
+export %inline
+parseHexadecimalNat : ByteString -> Maybe Nat
+parseHexadecimalNat (BS _ bv) = parseHexadecimalNat bv
+
+export %inline
+parseOctalNat : ByteString -> Maybe Nat
+parseOctalNat (BS _ bv) = parseOctalNat bv
+
+export %inline
+parseBinaryNat : ByteString -> Maybe Nat
+parseBinaryNat (BS _ bv) = parseBinaryNat bv
+
+export %inline
+parseInteger : ByteString -> Maybe Integer
+parseInteger (BS _ bv) = parseInteger bv
+
+export %inline
+parseDouble : ByteString -> Maybe Double
+parseDouble (BS _ bv) = parseDouble bv
