@@ -596,7 +596,13 @@ parseAnyNat base (BV {bufLen} buf off _) = go n off 0
 ||| Parses a natural number in decimal notation.
 export %inline
 parseDecimalNat : {n : _} -> ByteVect n -> Maybe Nat
-parseDecimalNat = parseAnyNat 10
+parseDecimalNat {n = Z} bv = Nothing
+parseDecimalNat (BV {bufLen} buf off _) = go n off 0
+  where go : (c,o,res : Nat) -> (0 os : Offset c o bufLen) => Maybe Nat
+        go 0     o res = Just res
+        go (S k) o res =
+          let Just n := fromDigit $ byteAtO o buf | Nothing => Nothing
+           in go k (S o) (res * 10 + n)
 
 export %inline
 parseHexadecimalNat : {n : _} -> ByteVect n -> Maybe Nat
@@ -636,27 +642,47 @@ exp bv =
   let Just exp := parseInteger bv | Nothing => Nothing
    in Just $ pow 10.0 (cast exp)
 
-parsePosDbl : {n : _} -> ByteVect n -> Maybe Double
-parsePosDbl bv = case break isDot bv of
-  MkBreakRes lf (S _) pre pst _ => case break isE (tail pst) of
-    MkBreakRes _ (S _) fractStr expStr _ =>
-      let Just x := parseDecimalNat pre | Nothing => Nothing
-          Just y := fract fractStr      | Nothing => Nothing
-          Just e := exp (tail expStr)   | Nothing => Nothing
-       in Just $ (cast x + y) * e
-    MkBreakRes _ 0     fractStr _   _ =>
-      let Just x := parseDecimalNat pre | Nothing => Nothing
-          Just y := fract fractStr      | Nothing => Nothing
-       in Just $ cast x + y
+parseDttd : {n : _} -> ByteVect n -> Maybe Double
+parseDttd (BV {bufLen} buf off _) = go 0 0 n off
+  where go : (v,exp,c,o : Nat) -> (0 _ : Offset c o bufLen) => Maybe Double
+        go v exp 0     o = case exp of
+          0 => Just $ cast v
+          _ => Just $ cast v / cast exp
+        go v exp (S k) o = case byteAtO o buf of
+          48 => go (v * 10 + 0) (exp * 10) k (S o)
+          49 => go (v * 10 + 1) (exp * 10) k (S o)
+          50 => go (v * 10 + 2) (exp * 10) k (S o)
+          51 => go (v * 10 + 3) (exp * 10) k (S o)
+          52 => go (v * 10 + 4) (exp * 10) k (S o)
+          53 => go (v * 10 + 5) (exp * 10) k (S o)
+          54 => go (v * 10 + 6) (exp * 10) k (S o)
+          55 => go (v * 10 + 7) (exp * 10) k (S o)
+          56 => go (v * 10 + 8) (exp * 10) k (S o)
+          57 => go (v * 10 + 9) (exp * 10) k (S o)
+          46 => case exp of
+            0 => go v 1 k (S o)
+            _ => Nothing
+          _  => Nothing
 
-  MkBreakRes lf 0     pre _   _ => case break isE pre of
-    MkBreakRes _ (S _) natStr expStr _ =>
-      let Just x := parseDecimalNat natStr | Nothing => Nothing
-          Just e := exp (tail expStr)      | Nothing => Nothing
-       in Just $ cast x * e
-    MkBreakRes _ 0     _      _   _ =>
-      let Just x := parseDecimalNat pre | Nothing => Nothing
-       in Just $ cast x
+parseDotted : {n : _} -> ByteVect n -> Maybe Double
+parseDotted bv = case break isDot bv of
+  MkBreakRes lf (S _) natStr fractStr _ =>
+    let Just x := parseDecimalNat (natStr) | Nothing => Nothing
+        Just y := fract (tail fractStr)    | Nothing => Nothing
+     in Just $ cast x + y
+  MkBreakRes _ 0 _ _ _ =>
+    let Just x := parseDecimalNat bv | Nothing => Nothing
+     in Just $ cast x
+
+parsePosDbl : {n : _} -> ByteVect n -> Maybe Double
+parsePosDbl bv = case parseDttd bv of
+  Just v  => Just v
+  Nothing => case break isE bv of
+    MkBreakRes lf (S _) dotStr expStr _ =>
+      let Just fract := parseDttd dotStr | Nothing => Nothing
+          Just e     := exp (tail expStr)  | Nothing => Nothing
+       in Just $ fract * e
+    MkBreakRes _ 0 _ _ _ => Nothing
 
 export
 parseDouble : {n : _} -> ByteVect n -> Maybe Double
