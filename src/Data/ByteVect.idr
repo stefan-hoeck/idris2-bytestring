@@ -642,8 +642,8 @@ exp bv =
   let Just exp := parseInteger bv | Nothing => Nothing
    in Just $ pow 10.0 (cast exp)
 
-parseDttd : {n : _} -> ByteVect n -> Maybe Double
-parseDttd (BV {bufLen} buf off _) = go 0 0 n off
+parseDotted : {n : _} -> ByteVect n -> Maybe Double
+parseDotted (BV {bufLen} buf off _) = go 0 0 n off
   where go : (v,exp,c,o : Nat) -> (0 _ : Offset c o bufLen) => Maybe Double
         go v exp 0     o = case exp of
           0 => Just $ cast v
@@ -664,22 +664,12 @@ parseDttd (BV {bufLen} buf off _) = go 0 0 n off
             _ => Nothing
           _  => Nothing
 
-parseDotted : {n : _} -> ByteVect n -> Maybe Double
-parseDotted bv = case break isDot bv of
-  MkBreakRes lf (S _) natStr fractStr _ =>
-    let Just x := parseDecimalNat (natStr) | Nothing => Nothing
-        Just y := fract (tail fractStr)    | Nothing => Nothing
-     in Just $ cast x + y
-  MkBreakRes _ 0 _ _ _ =>
-    let Just x := parseDecimalNat bv | Nothing => Nothing
-     in Just $ cast x
-
 parsePosDbl : {n : _} -> ByteVect n -> Maybe Double
-parsePosDbl bv = case parseDttd bv of
+parsePosDbl bv = case parseDotted bv of
   Just v  => Just v
   Nothing => case break isE bv of
     MkBreakRes lf (S _) dotStr expStr _ =>
-      let Just fract := parseDttd dotStr | Nothing => Nothing
+      let Just fract := parseDotted dotStr | Nothing => Nothing
           Just e     := exp (tail expStr)  | Nothing => Nothing
        in Just $ fract * e
     MkBreakRes _ 0 _ _ _ => Nothing
