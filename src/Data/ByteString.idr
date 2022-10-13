@@ -114,7 +114,9 @@ fastConcat bs =
 ||| Concatenate two `ByteString`s. O(n + m).
 export %inline
 append : ByteString -> ByteString -> ByteString
-append b1 b2 = fastConcat [b1,b2]
+append (BS 0 _) b2       = b2
+append b1       (BS 0 _) = b1
+append b1 b2             = fastConcat [b1,b2]
 
 ||| Prepend a single `Bits8` to a `ByteString`. O(n).
 export %inline
