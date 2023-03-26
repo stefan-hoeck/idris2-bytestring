@@ -1,10 +1,11 @@
 module Data.Buffer.Indexed
 
 import Algebra.Solver.Semiring
+import Network.Socket.Raw
+import System.File
+import public Data.Buffer
 import public Data.Buffer.Index
 import public Data.Nat.BSExtra
-import public Data.Buffer
-import System.File
 
 %default total
 
@@ -189,33 +190,60 @@ readBuffer max f =
        else pure (Left FileReadError)
 
 export
-writeBuffer : HasIO io
-            => File
-            -> (offset,size : Nat)
-            -> IBuffer n
-            -> io (Either (FileError,Int) ())
+writeBuffer :
+     HasIO io
+  => File
+  -> (offset,size : Nat)
+  -> IBuffer n
+  -> io (Either (FileError,Int) ())
 writeBuffer h o s (Buf buf) = writeBufferData h buf (cast o) (cast s)
 
 export
-readByteString :  HasIO io
-               => Nat
-               -> File
-               -> io (Either FileError ByteString)
+readByteString :
+     HasIO io
+  => Nat
+  -> File
+  -> io (Either FileError ByteString)
 readByteString max f = do
   Right (k ** buf) <- readBuffer max f | Left err => pure (Left err)
   pure $ Right (BS k $ BV buf 0 refl)
 
 export %inline
-writeByteVect :  {n : _}
-              -> HasIO io
-              => File
-              -> ByteVect n
-              -> io (Either (FileError,Int) ())
+writeByteVect :
+     {n : _}
+  -> HasIO io
+  => File
+  -> ByteVect n
+  -> io (Either (FileError,Int) ())
 writeByteVect h (BV buf o _) = writeBuffer h o n buf
 
 export %inline
-writeByteString :  HasIO io
-                => File
-                -> ByteString
-                -> io (Either (FileError,Int) ())
+writeByteString :
+     HasIO io
+  => File
+  -> ByteString
+  -> io (Either (FileError,Int) ())
 writeByteString h (BS n bs) = writeByteVect h bs
+
+export
+recvBuffer :
+     HasIO io
+  => Nat
+  -> Socket
+  -> io (Either SocketError (k ** IBuffer k))
+recvBuffer max sock =
+  let buf  := prim__newBuf (cast max)
+   in do
+    Right read <- recvBuf sock (BPtr $ believe_me buf) (cast max)
+      | Left err => pure (Left err)
+    pure $ Right (cast read ** Buf buf)
+
+export
+recvByteString :
+     HasIO io
+  => Nat
+  -> Socket
+  -> io (Either SocketError ByteString)
+recvByteString max sock = do
+  Right (k ** buf) <- recvBuffer max sock | Left err => pure (Left err)
+  pure $ Right (BS k $ BV buf 0 refl)
