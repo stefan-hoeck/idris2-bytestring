@@ -2,7 +2,7 @@ package bytestring
 version    = 0.0.1
 authors    = "Stefan Höck"
 depends    = base    >= 0.5.1
-           , prim
+           , algebra
 
 brief      = "Immutable byte vectors for Idris2"
 
