@@ -154,7 +154,7 @@ concatBuffer ps =
         go (BS 0 _                   :: xs) o buf prf w = go xs o buf prf w
         go (BS k (BV (Buf src) so _) :: xs) o buf prf w =
           let MkIORes () w2 := prim__copy src (cast so) (cast k) buf (cast o) w
-              0 pp := solve [k, o, totLength xs]
+              0 pp := solveNat [k, o, totLength xs]
                        ((k .+. o) +. totLength xs)
                        (o .+ (k .+. totLength xs))
            in go xs (k + o) buf (trans pp prf) w2

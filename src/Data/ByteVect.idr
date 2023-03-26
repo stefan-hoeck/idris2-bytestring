@@ -1,6 +1,7 @@
 module Data.ByteVect
 
 import Algebra.Solver.Semiring
+import Control.WellFounded
 import public Data.Buffer.Indexed
 import public Data.Byte
 import public Data.Nat.BSExtra
@@ -131,7 +132,7 @@ replicate n = generate n . const
 export
 append : {m,n : _} -> ByteVect m  -> ByteVect n -> ByteVect (m + n)
 append b1 b2 =
-  let 0 pp := solve [m,n] (m .+ (n .+ 0)) (m .+. n)
+  let 0 pp := solveNat [m,n] (m .+ (n .+ 0)) (m .+. n)
       buf  := concatBuffer [BS m b1, BS n b2]
    in replace {p = ByteVect} pp $ BV buf 0 refl
 
@@ -480,36 +481,36 @@ record BreakRes (n : Nat) where
   lenSnd : Nat
   fst    : ByteVect lenFst
   snd    : ByteVect lenSnd
-  0 prf  : lenFst + lenSnd === n
+  0 prf  : LTE (lenFst + lenSnd) n
 
 ||| Returns the longest (possibly empty) prefix of elements which do not
 ||| satisfy the predicate and the remainder of the string.
 export
 break : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> BreakRes n
 break p bs =
-  let Element k _ = findIndexOrLength p bs
+  let Element k p = findIndexOrLength p bs
       bs1 = take k bs
       bs2 = drop k bs
-   in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinus k n %search)
+   in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinusLTE k n p)
 
 ||| Returns the longest (possibly empty) prefix before the first newline character
 export
 breakNL : {n : _} -> ByteVect n -> BreakRes n
 breakNL bs =
-  let Element k _ = findIndexOrLengthNL bs
+  let Element k p = findIndexOrLengthNL bs
       bs1 = take k bs
       bs2 = drop k bs
-   in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinus k n %search)
+   in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinusLTE k n p)
 
 ||| Returns the longest (possibly empty) suffix of elements which do not
 ||| satisfy the predicate and the remainder of the string.
 export
 breakEnd : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> BreakRes n
 breakEnd  p bs =
-  let Element k _ = findFromEndUntil p bs
+  let Element k p = findFromEndUntil p bs
       bs1 = take k bs
       bs2 = drop k bs
-   in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinus k n %search)
+   in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinusLTE k n p)
 
 ||| Returns the longest (possibly empty) prefix of elements
 ||| satisfying the predicate and the remainder of the string.
@@ -522,10 +523,10 @@ span p = break (not . p)
 export
 spanEnd : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> BreakRes n
 spanEnd p bs =
-  let Element k _ = findFromEndUntil (not . p) bs
+  let Element k p = findFromEndUntil (not . p) bs
       bs1 = take k bs
       bs2 = drop k bs
-   in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinus k n %search)
+   in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinusLTE k n p)
 
 ||| Splits a 'ByteVect' into components delimited by
 ||| separators, where the predicate returns True for a separator element.
@@ -536,12 +537,16 @@ splitWith :  {n : _}
           -> (Bits8 -> Bool)
           -> ByteVect n
           -> List ByteString
-splitWith p bs = go Lin n bs
-  where go : SnocList ByteString -> (m : Nat) -> ByteVect m -> List ByteString
-        go sb m bs' = case break p bs' of
-          MkBreakRes l1 0      b1 _  prf => sb <>> [BS l1 b1]
-          MkBreakRes l1 (S l2) b1 b2 prf =>
-            go (sb :< BS l1 b1) (assert_smaller m l2) (tail b2)
+splitWith p bs = go Lin n bs (sizeAccessible n)
+  where go :  SnocList ByteString
+           -> (m : Nat)
+           -> ByteVect m
+           -> (0 acc : SizeAccessible m)
+           -> List ByteString
+        go sb m bs' (Access rec) = case break p bs' of
+          MkBreakRes l1 0      b1 _  p => sb <>> [BS l1 b1]
+          MkBreakRes l1 (S l2) b1 b2 p =>
+            go (sb :< BS l1 b1) l2 (tail b2) (rec l2 $ ltPlusSuccRight' _ p)
 
 ||| Break a `ByteVect` into pieces separated by the byte
 ||| argument, consuming the delimiter.
@@ -555,12 +560,16 @@ split b = splitWith (b ==)
 
 export
 lines : {n : _} -> ByteVect n -> List ByteString
-lines bs = go Lin n bs
-  where go : SnocList ByteString -> (m : Nat) -> ByteVect m -> List ByteString
-        go sb m bs' = case breakNL bs' of
-          MkBreakRes l1 0      b1 _  prf => sb <>> [BS l1 b1]
-          MkBreakRes l1 (S l2) b1 b2 prf =>
-            go (sb :< BS l1 b1) (assert_smaller m l2) (tail b2)
+lines bs = go Lin n bs (sizeAccessible n)
+  where go :  SnocList ByteString
+           -> (m : Nat)
+           -> ByteVect m
+           -> (0 acc : SizeAccessible m)
+           -> List ByteString
+        go sb m bs' (Access rec) = case breakNL bs' of
+          MkBreakRes l1 0      b1 _  p => sb <>> [BS l1 b1]
+          MkBreakRes l1 (S l2) b1 b2 p =>
+            go (sb :< BS l1 b1) l2 (tail b2) (rec l2 $ ltPlusSuccRight' _ p)
 
 export
 isInfixOf : {m,n : _} -> ByteVect m -> ByteVect n -> Bool

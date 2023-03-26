@@ -87,6 +87,11 @@ tryLTE m n with (compare m n) proof eq
 --------------------------------------------------------------------------------
 
 export
+0 eqLTE : (m,n : Nat) -> m === n -> LTE m n
+eqLTE 0     0     Refl = LTEZero
+eqLTE (S k) (S k) Refl = LTESucc $ eqLTE k k Refl
+
+export
 0 lteMinus : (n : Nat) -> LTE (S (minus n 0)) (S n)
 lteMinus n = rewrite minusZeroRight n in reflexive
 
@@ -151,6 +156,12 @@ ltPlusSuccRight (S x) m     (S z) (LTESucc p) =
   let p2 = ltPlusSuccRight x m z p in LTESucc p2
 
 export
+0 ltPlusSuccRight' : (k : Nat) -> LTE (k + S m) n -> LT m n
+ltPlusSuccRight' 0     p           = p
+ltPlusSuccRight' (S x) (LTESucc p) =
+  lteSuccRight $ ltPlusSuccRight' x p
+
+export
 0 ltePlusSuccRight : {k,m,n : Nat} -> LTE (k + S m) n -> LTE (S $ k + m) n
 ltePlusSuccRight p = rewrite plusSuccRightSucc k m in p
 
@@ -160,6 +171,10 @@ plusMinus 0 0         _           = Refl
 plusMinus 0 (S k)     x           = Refl
 plusMinus (S k) 0     x           = absurd x
 plusMinus (S k) (S j) (LTESucc p) = cong S $ plusMinus k j p
+
+export
+0 plusMinusLTE : (m,n : Nat) -> LTE m n -> LTE (m + (n `minus` m)) n
+plusMinusLTE m n lte = eqLTE _ _ $ plusMinus m n lte
 
 export
 0 plusMinus' : (m,n : Nat) -> LTE m n -> (n `minus` m) + m === n
@@ -177,7 +192,7 @@ eqToLTE p = rewrite p in reflexive
 export
 0 sumEqLemma : (k,ix : Nat) -> S k + ix === n -> plus k (plus 1 ix) === n
 sumEqLemma k ix prf =
-  let pre := solve [k,ix,n] (k .+ (1 +. ix)) (1 + (k .+. ix))
+  let pre := solveNat [k,ix,n] (k .+ (1 +. ix)) (1 + (k .+. ix))
    in trans pre prf
 
 --------------------------------------------------------------------------------
@@ -195,7 +210,7 @@ export
 0 offsetToLTE : Offset c o l -> LTE (o+c) l
 offsetToLTE (I p)  = p
 offsetToLTE (N x) =
-  let prf := solve [o,c] (o .+ (1 +. c)) (1 + (o .+. c))
+  let prf := solveNat [o,c] (o .+ (1 +. c)) (1 + (o .+. c))
       p2  := injective prf
   in rewrite sym p2 in offsetToLTE x
 

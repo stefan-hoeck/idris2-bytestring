@@ -146,7 +146,7 @@ appendAssociative = property $ do
 prop_fastConcat : Property
 prop_fastConcat = property $ do
   bss <- forAll (list (linear 0 10) byteList)
-  fastConcat (pack <$> bss) === pack (concat bss)
+  ByteString.fastConcat (pack <$> bss) === pack (concat bss)
 
 consHead : Property
 consHead = property $ do

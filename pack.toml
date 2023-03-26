@@ -2,6 +2,7 @@
 type   = "local"
 path   = "."
 ipkg   = "bytestring.ipkg"
+test   = "test/test.ipkg"
 
 [custom.all.bytestring-test]
 type   = "local"
