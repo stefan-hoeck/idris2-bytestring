@@ -1,6 +1,7 @@
 module Data.Buffer.Indexed
 
 import Algebra.Solver.Semiring
+import Network.FFI
 import Network.Socket.Raw
 import System.File
 import public Data.Buffer
@@ -231,12 +232,12 @@ recvBuffer :
   => Nat
   -> Socket
   -> io (Either SocketError (k ** IBuffer k))
-recvBuffer max sock =
-  let buf  := prim__newBuf (cast max)
-   in do
-    Right read <- recvBuf sock (BPtr $ believe_me buf) (cast max)
-      | Left err => pure (Left err)
-    pure $ Right (cast read ** Buf buf)
+recvBuffer max sock = do
+  Just buffer <- newBuffer (cast max) | Nothing => pure $ Left (-1)
+  ret <- primIO $ prim__idrnet_recv_bytes sock.descriptor buffer (cast max) 0
+  case ret >= 0 of
+    False => pure $ Left ret
+    True  => pure $ Right (cast ret ** Buf buffer)
 
 export
 recvByteString :
