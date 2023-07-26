@@ -179,6 +179,22 @@ generateMaybe n f = unsafe $ go n 0 (plusZeroRightNeutral n) 0 (prim__newBuf $ c
 --          Reading and Writing from and to Files
 --------------------------------------------------------------------------------
 
+||| Wrappes a mutable buffer in an `IBuffer`.
+|||
+||| Client code is responsible to make sure the original buffer is no longer
+||| used.
+export
+unsafeMakeBuffer : Buffer -> IBuffer k
+unsafeMakeBuffer = Buf
+
+||| Wrappes a mutable of known size in a `ByteString`.
+|||
+||| Client code is responsible to make sure the original buffer is no longer
+||| used.
+export
+unsafeByteString : (k : Nat) -> Buffer -> ByteString
+unsafeByteString k b = BS k $ BV (unsafeMakeBuffer {k} b) 0 %search
+
 export
 readBuffer :  HasIO io => Nat -> File -> io (Either FileError (k ** IBuffer k))
 readBuffer max f =
