@@ -91,12 +91,13 @@ byteAtO o buf = byteAt o buf {lt = offsetLTE off}
 
 ||| Reads the value of a `ByteString` conting from the end of the buffer
 export %inline
-byteFromEnd :  {end : _}
-            -> (x : Nat)
-            -> (0 lt : LT x end)
-            => IBuffer n
-            -> (0 lte : LTE end n)
-            => Bits8
+byteFromEnd :
+     {end : _}
+  -> (x : Nat)
+  -> {auto 0 lt : LT x end}
+  -> IBuffer n
+  -> {auto 0 lte : LTE end n}
+  -> Bits8
 byteFromEnd x (Buf buf) =
   prim__getByte buf (natToInteger end - natToInteger x - 1)
 
@@ -114,11 +115,13 @@ empty = Buf (prim__newBuf 0)
 export
 fromList : (a -> Bits8) -> (as : List a) -> IBuffer (length as)
 fromList f vs = Buf $ unsafe $ go vs 0 (prim__newBuf $ cast $ length vs)
-  where go : (as : List a) -> (x  : Nat) -> Buffer -> PrimIO Buffer
-        go []        ix buf w = MkIORes buf w
-        go (b :: bs) ix buf w =
-          let MkIORes () w2 = writeByte ix (f b) buf w
-           in go bs (ix+1) buf w2
+
+  where
+    go : (as : List a) -> (x  : Nat) -> Buffer -> PrimIO Buffer
+    go []        ix buf w = MkIORes buf w
+    go (b :: bs) ix buf w =
+      let MkIORes () w2 = writeByte ix (f b) buf w
+       in go bs (ix+1) buf w2
 
 ||| Convert an UTF-8 string to a buffer
 export
@@ -132,11 +135,13 @@ fromString s =
 export
 generate : (n : Nat) -> (Index n -> Bits8) -> IBuffer n
 generate n f = unsafe $ go n (prim__newBuf $ cast n)
-  where go : (k : Nat) -> (0 lt : LTE k n) => Buffer -> PrimIO (IBuffer n)
-        go 0     buf w = MkIORes (Buf buf) w
-        go (S k) buf w =
-          let MkIORes () w2 = writeByte k (f $ toIndex k) buf w
-           in go k buf w2
+
+  where
+    go : (k : Nat) -> (0 lt : LTE k n) => Buffer -> PrimIO (IBuffer n)
+    go 0     buf w = MkIORes (Buf buf) w
+    go (S k) buf w =
+      let MkIORes () w2 = writeByte k (f $ toIndex k) buf w
+       in go k buf w2
 
 public export
 totLength : List ByteString -> Nat
@@ -147,33 +152,39 @@ export
 concatBuffer : (ps  : List ByteString) -> IBuffer (totLength ps)
 concatBuffer ps =
   unsafe $ go ps 0 (prim__newBuf $ cast $ totLength ps) Refl
-  where go :  (qs : List ByteString)
-           -> (o  : Nat)
-           -> Buffer
-           -> (0 prf : (o + totLength qs) === totLength ps)
-           -> PrimIO (IBuffer $ totLength ps)
-        go []                               o buf prf w = MkIORes (Buf buf) w
-        go (BS 0 _                   :: xs) o buf prf w = go xs o buf prf w
-        go (BS k (BV (Buf src) so _) :: xs) o buf prf w =
-          let MkIORes () w2 := prim__copy src (cast so) (cast k) buf (cast o) w
-              0 pp := solveNat [k, o, totLength xs]
-                       ((k .+. o) +. totLength xs)
-                       (o .+ (k .+. totLength xs))
-           in go xs (k + o) buf (trans pp prf) w2
+  where
+    go :
+         (qs : List ByteString)
+      -> (o  : Nat)
+      -> Buffer
+      -> (0 prf : (o + totLength qs) === totLength ps)
+      -> PrimIO (IBuffer $ totLength ps)
+    go []                               o buf prf w = MkIORes (Buf buf) w
+    go (BS 0 _                   :: xs) o buf prf w = go xs o buf prf w
+    go (BS k (BV (Buf src) so _) :: xs) o buf prf w =
+      let MkIORes () w2 := prim__copy src (cast so) (cast k) buf (cast o) w
+          0 pp := solveNat [k, o, totLength xs]
+                   ((k .+. o) +. totLength xs)
+                   (o .+ (k .+. totLength xs))
+       in go xs (k + o) buf (trans pp prf) w2
 
 export
 generateMaybe : (n : Nat) -> (Index n -> Maybe Bits8) -> ByteString
-generateMaybe n f = unsafe $ go n 0 (plusZeroRightNeutral n) 0 (prim__newBuf $ cast n)
-  where go :  (c,ix : Nat)
-           -> (0 prf : c + ix === n)
-           -> (pos  : Nat)
-           -> Buffer
-           -> PrimIO ByteString
-        go 0     ix prf pos buf w = MkIORes (BS pos $ BV (Buf buf) 0 refl) w
-        go (S k) ix prf pos buf w = case f (toIndexLT ix $ eqToLTE prf) of
-          Nothing => go k (S ix) (sumEqLemma k ix prf) pos buf w
-          Just b  => let MkIORes () w2 := writeByte pos b buf w
-                      in go k (S ix) (sumEqLemma k ix prf) (pos + 1) buf w2
+generateMaybe n f =
+  unsafe $ go n 0 (plusZeroRightNeutral n) 0 (prim__newBuf $ cast n)
+
+  where
+    go :
+         (c,ix : Nat)
+      -> (0 prf : c + ix === n)
+      -> (pos  : Nat)
+      -> Buffer
+      -> PrimIO ByteString
+    go 0     ix prf pos buf w = MkIORes (BS pos $ BV (Buf buf) 0 refl) w
+    go (S k) ix prf pos buf w = case f (toIndexLT ix $ eqToLTE prf) of
+      Nothing => go k (S ix) (sumEqLemma k ix prf) pos buf w
+      Just b  => let MkIORes () w2 := writeByte pos b buf w
+                  in go k (S ix) (sumEqLemma k ix prf) (pos + 1) buf w2
 
 --------------------------------------------------------------------------------
 --          Reading and Writing from and to Files
@@ -208,8 +219,8 @@ readBuffer max f =
 
 export
 writeBuffer :
-     HasIO io
-  => File
+     {auto _ : HasIO io}
+  -> File
   -> (offset,size : Nat)
   -> IBuffer n
   -> io (Either (FileError,Int) ())
@@ -217,8 +228,8 @@ writeBuffer h o s (Buf buf) = writeBufferData h buf (cast o) (cast s)
 
 export
 readByteString :
-     HasIO io
-  => Nat
+     {auto _ : HasIO io}
+  -> Nat
   -> File
   -> io (Either FileError ByteString)
 readByteString max f = do
@@ -228,24 +239,24 @@ readByteString max f = do
 export %inline
 writeByteVect :
      {n : _}
-  -> HasIO io
-  => File
+  -> {auto _ : HasIO io}
+  -> File
   -> ByteVect n
   -> io (Either (FileError,Int) ())
 writeByteVect h (BV buf o _) = writeBuffer h o n buf
 
 export %inline
 writeByteString :
-     HasIO io
-  => File
+     {auto _ : HasIO io}
+  -> File
   -> ByteString
   -> io (Either (FileError,Int) ())
 writeByteString h (BS n bs) = writeByteVect h bs
 
 export
 recvBuffer :
-     HasIO io
-  => Nat
+     {auto _ : HasIO io}
+  -> Nat
   -> Socket
   -> io (Either SocketError (k ** IBuffer k))
 recvBuffer max sock = do
@@ -257,8 +268,8 @@ recvBuffer max sock = do
 
 export
 recvByteString :
-     HasIO io
-  => Nat
+     {auto _ : HasIO io}
+  -> Nat
   -> Socket
   -> io (Either SocketError ByteString)
 recvByteString max sock = do

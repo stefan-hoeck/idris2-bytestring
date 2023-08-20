@@ -410,11 +410,12 @@ split b = splitWith (b ==)
 
 ||| Parse a natural number in the given base.
 export %inline
-parseAnyNat :  (base : Nat)
-            -> (0 p1 : LTE 2 base)
-            => (0 p2 : LTE base 16)
-            => ByteString
-            -> Maybe Nat
+parseAnyNat :
+     (base : Nat)
+  -> {auto 0 p1 : LTE 2 base}
+  -> {auto 0 p2 : LTE base 16}
+  -> ByteString
+  -> Maybe Nat
 parseAnyNat base (BS _ bv) = parseAnyNat base bv
 
 ||| Parses a natural number in decimal notation.
