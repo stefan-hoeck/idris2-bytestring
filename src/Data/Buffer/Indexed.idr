@@ -71,6 +71,15 @@ record ByteString where
   size : Nat
   repr : ByteVect size
 
+||| Copy the given `ByteString` and write its content to a freshly
+||| allocated buffer.
+export
+toBuffer : ByteString -> IO Buffer
+toBuffer (BS s $ BV (Buf buf) o _) = do
+  b2 <- pure $ prim__newBuf (cast s)
+  fromPrim $ prim__copy buf (cast o) (cast s) b2 0
+  pure b2
+
 --------------------------------------------------------------------------------
 --          IBuffer
 --------------------------------------------------------------------------------
