@@ -22,7 +22,7 @@ public export %inline
 byte_a : Bits8
 byte_a = 97
 
-||| ASCII code of 'a'
+||| ASCII code of 'f'
 public export %inline
 byte_f : Bits8
 byte_f = 102
