@@ -48,6 +48,14 @@ export
 data IBuffer : Nat -> Type where
   Buf : (buf : Buffer) -> IBuffer len
 
+||| Exposes the internal byte vector of an `IBuffer`.
+|||
+||| This can be used to write a `ByteString` or `ByteVector` to a file
+||| without unnecessary copying. This is highly unsafe, so use at your own risk.
+export
+unsafeToBuffer : IBuffer n -> Buffer
+unsafeToBuffer (Buf b) = b
+
 ||| An immutable, length-indexed byte vector.
 |||
 ||| Internally represented by a `Data.Buffer` together
