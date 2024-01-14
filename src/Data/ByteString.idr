@@ -6,6 +6,8 @@ import Data.Buffer.Mutable
 import Data.Maybe0
 import Data.Nat.BSExtra
 
+import System.File
+
 import public Data.ByteVect as BV
 
 %default total
@@ -473,3 +475,30 @@ parseInteger (BS _ bv) = parseInteger bv
 export %inline
 parseDouble : ByteString -> Maybe Double
 parseDouble (BS _ bv) = parseDouble bv
+
+--------------------------------------------------------------------------------
+--          Reading and Writing Files
+--------------------------------------------------------------------------------
+
+export
+readBytesString :  HasIO io => Nat -> File -> io (Either FileError ByteString)
+readBytesString max f = do
+  Right (n ** ib) <- readIBuffer max f | Left x => pure (Left x)
+  pure . Right $ BS n (BV ib 0 reflexive)
+
+export %inline
+writeByteVect :
+     {n : _}
+  -> {auto _ : HasIO io}
+  -> File
+  -> ByteVect n
+  -> io (Either (FileError,Int) ())
+writeByteVect h (BV buf o _) = writeIBuffer h o n buf
+
+export %inline
+writeByteString :
+     {auto _ : HasIO io}
+  -> File
+  -> ByteString
+  -> io (Either (FileError,Int) ())
+writeByteString h (BS n bs) = writeByteVect h bs

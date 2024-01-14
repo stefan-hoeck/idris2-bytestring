@@ -8,8 +8,7 @@ depends    = base    >= 0.5.1
 
 brief      = "Immutable byte vectors for Idris2"
 
-modules    = Data.Buffer.Index
-           , Data.Byte
+modules    = Data.Byte
            , Data.ByteString
            , Data.ByteVect
            , Data.Nat.BSExtra
