@@ -63,7 +63,14 @@ tryLTE k with (k < n) proof eq
   _ | True  = Just0 $ ltOpReflectsLT k n eq
   _ | False = Nothing0
 
---
+export
+0 concatLemma1 : {0 k,m,n : Nat} -> LTE (k + m) (k + (m+n))
+concatLemma1 = rewrite plusAssociative k m n in lteAddRight _
+
+export
+0 concatLemma2 : {0 l,k,m,n : Nat} -> l+(k+m) === n -> (l+k)+m === n
+concatLemma2 p1 = trans (sym $ plusAssociative l k m) p1
+
 -- --------------------------------------------------------------------------------
 -- --          Utilities
 -- --------------------------------------------------------------------------------
@@ -200,26 +207,3 @@ minusLT 0     0     lt           = absurd lt
 -- sumEqLemma k ix prf =
 --   let pre := solveNat [k,ix,n] (k .+ (1 +. ix)) (1 + (k .+. ix))
 --    in trans pre prf
---
--- --------------------------------------------------------------------------------
--- --          Offset
--- --------------------------------------------------------------------------------
---
--- ||| Offset lemmata
--- public export
--- data Offset : (count, offset, bufLen : Nat) -> Type where
---   [search offset bufLen]
---   I : {c,o,l : Nat} -> (0 p : LTE (o + c) l) -> Offset c o l
---   N : Offset (S c) o l -> Offset c (S o) l
---
--- export
--- 0 offsetToLTE : Offset c o l -> LTE (o+c) l
--- offsetToLTE (I p)  = p
--- offsetToLTE (N x) =
---   let prf := solveNat [o,c] (o .+ (1 +. c)) (1 + (o .+. c))
---       p2  := injective prf
---   in rewrite sym p2 in offsetToLTE x
---
--- export
--- 0 offsetLTE : (off : Offset (S c) o l) -> LT o l
--- offsetLTE off = ltPlusSuccRight o c l (offsetToLTE off)

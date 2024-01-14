@@ -142,11 +142,11 @@ appendAssociative : Property
 appendAssociative = property $ do
   [bs1,bs2,bs3] <- forAll $ np [bytestring,bytestring,bytestring]
   ((bs1 <+> bs2) <+> bs3) === (bs1 <+> (bs2 <+> bs3))
---
--- prop_fastConcat : Property
--- prop_fastConcat = property $ do
---   bss <- forAll (list (linear 0 10) byteList)
---   ByteString.fastConcat (pack <$> bss) === pack (concat bss)
+
+prop_fastConcat : Property
+prop_fastConcat = property $ do
+  bss <- forAll (list (linear 0 10) byteList)
+  ByteString.fastConcat (pack <$> bss) === BS.pack (concat bss)
 
 consHead : Property
 consHead = property $ do
@@ -307,7 +307,7 @@ main = test . pure $ MkGroup "ByteString"
   , ("appendNeutralRight", appendNeutralRight)
   , ("appendNeutralLeft", appendNeutralLeft)
   , ("appendAssociative", appendAssociative)
---  , ("prop_fastConcat", prop_fastConcat)
+  , ("prop_fastConcat", prop_fastConcat)
   , ("consHead", consHead)
   , ("consTail", consTail)
   , ("snocLast", snocLast)

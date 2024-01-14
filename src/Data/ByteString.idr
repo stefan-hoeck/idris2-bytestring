@@ -2,10 +2,11 @@
 module Data.ByteString
 
 import Data.Buffer
+import Data.Buffer.Mutable
 import Data.Maybe0
 import Data.Nat.BSExtra
 
-import public Data.ByteVect
+import public Data.ByteVect as BV
 -- import Data.Buffer.Index
 -- import Data.Buffer.Indexed
 -- import System.File
@@ -100,14 +101,31 @@ replicate n = generate n . const
 --          Concatenating ByteStrings
 --------------------------------------------------------------------------------
 
---TODO
+public export
+TotLength : List ByteString -> Nat
+TotLength []             = 0
+TotLength (BS n _ :: xs) = n + TotLength xs
+
+export
+copyMany :
+     (ps  : List ByteString)
+  -> (pos : Nat)
+  -> {auto 0 prf : pos + TotLength ps === n}
+  -> MBuffer n
+  -@ MBuffer n
+copyMany []                      pos m = m
+copyMany (BS k (BV b o lt):: xs) pos m =
+  let m1 := copy b o pos k @{lt} @{rewrite sym prf in concatLemma1} m
+   in copyMany xs (pos + k) @{concatLemma2 prf} m1
+
 ||| Concatenate a list of `ByteString`. This allocates
 ||| a buffer of sufficient size in advance, so it is much
 ||| faster than `concat`, or `concatMap` for large `ByteString`s.
 export
 fastConcat :  (bs : List ByteString) -> ByteString
--- fastConcat bs =
---    BS (totLength bs) $ BV (concatBuffer bs) 0 refl
+fastConcat bs =
+  unrestricted $ alloc (TotLength bs) $ \m1 =>
+    let m2 := copyMany bs 0 m1 in freezeByteString m2
 
 ||| Concatenate two `ByteString`s. O(n + m).
 export %inline
