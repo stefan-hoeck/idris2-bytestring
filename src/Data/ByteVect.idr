@@ -1,35 +1,72 @@
 module Data.ByteVect
 
-import Algebra.Solver.Semiring
 import Control.WellFounded
+import Data.Buffer
+import Data.Buffer.Mutable
+import Data.Nat.BSExtra
+
+import public Data.Buffer.Core
 import public Data.Buffer.Indexed
 import public Data.Byte
-import public Data.Nat.BSExtra
-import System.File
 
 %default total
 
-||| Reads the value of a `ByteVect` at the given position
-export
-getByte : (x : Nat) -> (0 lt : LT x n) => ByteVect n -> Bits8
-getByte x (BV buf o lte) =
-  byteAt (o + x) buf {lt = transitive (ltPlusRight o lt) lte}
+||| An immutable, length-indexed byte vector.
+|||
+||| Internally represented by a `Data.Buffer` together
+||| with its length and offset.
+|||
+||| The internal buffer is treated as being immutable,
+||| so operations modifying a `ByteVect` will create
+||| and write to a new `Buffer`.
+public export
+data ByteVect : Nat -> Type where
+  BV :  (buf    : IBuffer bufLen)
+     -> (offset : Nat)
+     -> (0 lte  : LTE (offset + len) bufLen)
+     -> ByteVect len
 
-||| Reads the value of a `ByteVect` at the given position
+||| An immutable string of raw bytes. For an length-indexed version,
+||| see module `ByteVect` and `Data.ByteVect`.
+public export
+record ByteString where
+  constructor BS
+  size : Nat
+  repr : ByteVect size
+
+%inline
+conv : {n : _} -> Ur (IBuffer n) -@ Ur ByteString
+conv (MkBang v) = MkBang $ BS n (BV v 0 reflexive)
+
+||| Safely wrap a mutable buffer in a `ByteString`.
 export
-getByteFromEnd : {n : _} -> (x : Nat) -> (0 lt : LT x n) => ByteVect n -> Bits8
-getByteFromEnd x (BV buf o lte) =
-  byteFromEnd {end = o+n} x {lt = lteAddLeft o lt} buf
+freezeByteString : {n : _} -> MBuffer n -@ Ur ByteString
+freezeByteString mb = conv $ freeze mb
+
+||| Safely wrap a mutable buffer in a `ByteString`.
+export
+freezeByteStringLTE : (m : Nat) -> (0 _ : LTE m n) => MBuffer n -@ Ur ByteString
+freezeByteStringLTE m mb = conv $ freezeLTE m mb
 
 ||| Reads the value of a `ByteVect` at the given position
 export %inline
-index : Index n -> ByteVect n -> Bits8
-index (Element k _) bs = getByte k bs
+at : ByteVect n -> Fin n -> Bits8
+at (BV buf o lte) x =
+  atNat buf (o + finToNat x) @{transitive (ltPlusRight $ finToNatLT x) lte}
 
-||| Reads the value of a `ByteVect` at the given position
+||| Safely access a value in an array at position `n - m`.
 export %inline
-indexFromEnd : {n : _} -> Index n -> ByteVect n -> Bits8
-indexFromEnd (Element x _) bs = getByteFromEnd x bs
+ix : ByteVect n -> (0 m : Nat) -> {auto x: Ix (S m) n} -> Bits8
+ix bv _ = at bv (ixToFin x)
+
+||| Safely access a value in an array at the given position.
+export %inline
+atNat : ByteVect n -> (m : Nat) -> {auto 0 lt : LT m n} -> Bits8
+atNat bv x = at bv (natToFinLT x)
+
+export
+fromEnd : {n : _} -> ByteVect n -> (m : Nat) -> {auto 0 lt : LT m n} -> Bits8
+fromEnd bs m = atNat bs (n `minus` S m) @{minusLT _ _ lt}
 
 --------------------------------------------------------------------------------
 --          Making ByteStrings
@@ -43,8 +80,8 @@ empty = BV empty 0 %search
 ||| Converts a list of values to a `ByteVect` using
 ||| the given conversion function. O(n).
 export
-fromList : (a -> Bits8) -> (as : List a) -> ByteVect (length as)
-fromList f as = BV (fromList f as) 0 reflexive
+pack : (as : List Bits8) -> ByteVect (length as)
+pack as = BV (bufferL as) 0 reflexive
 
 ||| Converts a `String` to a `ByteVect`. Note: This will
 ||| correctly decode the corresponding UTF-8 string.
@@ -56,11 +93,6 @@ fromString s = BV (fromString s) 0 reflexive
 export
 toString : {n : _} -> ByteVect n -> String
 toString (BV buf o _) = toString buf o n
-
-||| Converts a list of `Bits8` values to a `ByteVect`.
-export %inline
-pack : (as : List Bits8) -> ByteVect (length as)
-pack = fromList id
 
 ||| Creates a `ByteVect` holding a single `Bits8` value.
 export %inline
@@ -76,7 +108,7 @@ toList f bs     = go Nil n
   where
     go : List a -> (x : Nat) -> (0 prf : LTE x n) => List a
     go xs 0     = xs
-    go xs (S j) = go (f (getByte j bs) :: xs) j
+    go xs (S j) = go (f (atNat bs j) :: xs) j
 
 ||| Converts a `ByteVect` to a list of `Bits8` values. O(n).
 export %inline
@@ -97,19 +129,15 @@ export %inline
 ||| Lexicographic comparison of `ByteVect`s of distinct length
 export
 hcomp : {m,n : Nat} -> ByteVect m -> ByteVect n -> Ordering
-hcomp (BV {bufLen = bl1} b1 o1 _) (BV {bufLen = bl2} b2 o2 _) = go m o1 n o2
+hcomp b1 b2 = go m n
 
   where
-    go :
-         (c1,o1,c2,o2 : Nat)
-      -> {auto 0 _ : Offset c1 o1 bl1}
-      -> {auto 0 _ : Offset c2 o2 bl2}
-      -> Ordering
-    go 0     _  0     _  = EQ
-    go 0     _  (S _) _  = LT
-    go (S _) _  0     _  = GT
-    go (S k) o1 (S j) o2 = case compare (byteAtO o1 b1) (byteAtO o2 b2) of
-      EQ => go k (S o1) j (S o2)
+    go : (k,l : Nat) -> {auto a1 : Ix k m} -> {auto a2 : Ix l n} -> Ordering
+    go 0     0     = EQ
+    go 0     (S _) = LT
+    go (S _) 0     = GT
+    go (S k) (S j) = case compare (ix b1 k) (ix b2 j) of
+      EQ => go k j
       r  => r
 
 ||| Heterogeneous equality for `ByteVect`s
@@ -122,7 +150,7 @@ heq bs1 bs2 = hcomp bs1 bs2 == EQ
 --------------------------------------------------------------------------------
 
 export
-generate : (n : Nat) -> (Index n -> Bits8) -> ByteVect n
+generate : (n : Nat) -> (Fin n -> Bits8) -> ByteVect n
 generate n f = BV (generate n f) 0 refl
 
 export
@@ -135,11 +163,13 @@ replicate n = generate n . const
 
 ||| Concatenate two `ByteVect`s. O(n + m).
 export
-append : {m,n : _} -> ByteVect m  -> ByteVect n -> ByteVect (m + n)
-append b1 b2 =
-  let 0 pp := solveNat [m,n] (m .+ (n .+ 0)) (m .+. n)
-      buf  := concatBuffer [BS m b1, BS n b2]
-   in replace {p = ByteVect} pp $ BV buf 0 refl
+append : {m,n : _} -> ByteVect m -> ByteVect n -> ByteVect (m + n)
+append (BV src1 o1 lte1) (BV src2 o2 lte2) =
+  let buf := unrestricted $ Buffer.Core.alloc (m+n) $ \b1 =>
+              let b2 := copy src1 o1 0 m @{lte1} @{lteAddRight _} b1
+                  b3 := copy src2 o2 m n @{lte2} @{reflexive} b2
+               in freeze b3
+   in BV buf 0 reflexive
 
 ||| Prepend a single `Bits8` to a `ByteVect`. O(n).
 export %inline
@@ -158,7 +188,7 @@ snoc w bs = bs `append` singleton w
 ||| Read the first element of a `ByteVect`. O(1).
 export
 head : ByteVect (S n) -> Bits8
-head = getByte 0
+head bv = atNat bv 0
 
 ||| Drop the first `Bits8` from a `ByteVect`. O(1).
 export
@@ -173,7 +203,7 @@ uncons bs = (head bs, tail bs)
 ||| Read the last `Bits8` from a `ByteVect`. O(1).
 export
 last : {n : _} -> ByteVect (S n) -> Bits8
-last = getByte n
+last bs = ix bs n
 
 ||| Drop the last `Bits8` from a `ByteVect`. O(1).
 export
@@ -193,7 +223,7 @@ unsnoc bs = (last bs, init bs)
 ||| function. O(n).
 export
 map : {n : _} -> (Bits8 -> Bits8) -> ByteVect n -> ByteVect n
-map f bs = generate n (\x => f $ index x bs)
+map f bs = generate n (\x => f $ at bs x)
 
 ||| Interpreting the values stored in a `ByteVect` as 8 bit characters,
 ||| convert every lower-case character to its upper-case form. O(n)
@@ -210,30 +240,29 @@ toLower = map toLower
 ||| Inverse the order of bytes in a `ByteVect`. O(n)
 export
 reverse : {n : _} -> ByteVect n -> ByteVect n
-reverse bs = generate n (\x => indexFromEnd x bs)
+reverse bs = generate n (\x => fromEnd bs (finToNat x) @{finToNatLT _})
 
 ||| True, if the predicate holds for all bytes
 ||| in the given `ByteVect`. O(n)
 export
 all : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> Bool
-all p (BV {bufLen} buf off lte) = go n off
+all p bv = go n
 
   where
-    go : (c, o : Nat) -> (0 off : Offset c o bufLen) => Bool
-    go 0     o = True
-    go (S k) o = if p (byteAtO o buf) then go k (S o) else False
+    go : (c : Nat) -> (x : Ix c n) => Bool
+    go 0     = True
+    go (S k) = if p (ix bv k) then go k else False
 
 ||| True, if the predicate holds for at least one byte
 ||| in the given `ByteVect`. O(n)
 export
 any : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> Bool
-any p (BV {bufLen} buf off lte) = go n off
+any p bv = go n
 
   where
-    go : (c, o : Nat) -> (0 _ : Offset c o bufLen) => Bool
-    go 0     o = False
-    go (S k) o = if p (byteAtO o buf) then True else go k (S o)
-
+    go : (c : Nat) -> (x : Ix c n) => Bool
+    go 0     = False
+    go (S k) = if p (ix bv k) then True else go k
 
 ||| True, if the given `Bits8` appears in the `ByteVect`. O(n)
 export %inline
@@ -243,12 +272,12 @@ elem b = any (b ==)
 ||| Fold a `ByteVect` from the left. O(n)
 export
 foldl : {n : _} -> (a -> Bits8 -> a) -> a -> ByteVect n -> a
-foldl f ini (BV {bufLen} buf off lte) = go n off ini
+foldl f ini bv = go n ini
 
   where
-    go : (c,o : Nat) -> (v : a) -> (0 _ : Offset c o bufLen) => a
-    go 0     o v = v
-    go (S k) o v = go k (S o) (f v $ byteAtO o buf)
+    go : (c : Nat) -> (v : a) -> (x : Ix c n) => a
+    go 0     v = v
+    go (S k) v = go k (f v $ ix bv k)
 
 ||| Fold a `ByteVect` from the right. O(n)
 export
@@ -258,58 +287,42 @@ foldr f ini bs = go n ini
   where
     go : (k : Nat) -> (v : a) -> (0 lt : LTE k n) => a
     go 0     v = v
-    go (S k) v = go k (f (getByte k bs) v)
+    go (S k) v = go k (f (atNat bs k) v)
 
 ||| The `findIndex` function takes a predicate and a `ByteVect` and
 ||| returns the index of the first element in the ByteVect
 ||| satisfying the predicate. O(n)
 export
-findIndex :
-     {n : _}
-  -> (Bits8 -> Bool)
-  -> ByteVect n
-  -> Maybe (Subset Nat (`LT` n))
-findIndex p (BV {bufLen} buf off _) = go n off
+findIndex : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> Maybe (Fin n)
+findIndex p bv = go n
 
   where
-    go :
-         (c,o : Nat)
-      -> {auto 0 _ : Offset c o bufLen}
-      -> {auto 0 _ : LTE c n}
-      -> Maybe (Index n)
-    go 0     _ = Nothing
-    go (S k) o = case p (byteAtO o buf) of
-      True  => Just $ toEndIndex k
-      False => go k (S o)
+    go : (c : Nat) -> {auto x : Ix c n} -> Maybe (Fin n)
+    go 0     = Nothing
+    go (S k) = if p (ix bv k) then Just (ixToFin x) else go k
 
 ||| Return the index of the first occurence of the given
 ||| byte in the `ByteVect`, or `Nothing`, if the byte
 ||| does not appear in the ByteVect. O(n)
 export
-elemIndex : {n : _} -> Bits8 -> ByteVect n -> Maybe (Index n)
+elemIndex : {n : _} -> Bits8 -> ByteVect n -> Maybe (Fin n)
 elemIndex c = findIndex (c ==)
 
 ||| Returns the first value byte in a `ByteVect` fulfilling
 ||| the given predicate. O(n)
 export
 find : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> Maybe Bits8
-find p bs = (`index` bs) <$> findIndex p bs
+find p bs = at bs <$> findIndex p bs
 
 export
 isPrefixOf : {m,n : _} -> ByteVect m -> ByteVect n -> Bool
-isPrefixOf (BV {bufLen = bl1} b o _) (BV {bufLen = bl2} b' o' _) = go m o n o'
+isPrefixOf bv1 bv2 = go m n
 
   where
-    go :
-         (c1,o1,c2,o2 : Nat)
-      -> {auto 0 _ : Offset c1 o1 bl1}
-      -> {auto 0 _ : Offset c2 o2 bl2}
-      -> Bool
-    go 0     _  _     _  = True
-    go _     _  0     _  = False
-    go (S x) o1 (S y) o2 = case byteAtO o1 b == byteAtO o2 b' of
-      True  => go x (S o1) y (S o2)
-      False => False
+    go : (c1,c2 : Nat) -> {auto _ : Ix c1 m} -> {auto _ : Ix c2 n} -> Bool
+    go 0     _     = True
+    go _     0     = False
+    go (S x) (S y) = if ix bv1 x == ix bv2 y then go x y else False
 
 export
 isSuffixOf : {m,n : _} -> ByteVect m -> ByteVect n -> Bool
@@ -319,52 +332,35 @@ isSuffixOf bv1 bv2 = go m n
     go : (o1,o2 : Nat) -> (0 _ : LTE o1 m) => (0 _ : LTE o2 n) => Bool
     go 0     _     = True
     go _     0     = False
-    go (S x) (S y) = case getByte x bv1 == getByte y bv2 of
-      True  => go x y
-      False => False
+    go (S x) (S y) = if atNat bv1 x == atNat bv2 y then go x y else False
 
 --------------------------------------------------------------------------------
 --          Substrings
 --------------------------------------------------------------------------------
 
-findIndexOrLength :
-     {n : _}
-  -> (Bits8 -> Bool)
-  -> ByteVect n
-  -> SubLength n
-findIndexOrLength p (BV {bufLen} buf off _) = go n off
+findIndexOrLength : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> SubLength n
+findIndexOrLength p bv = go n
 
   where
-    go :
-         (c,o : Nat)
-      -> {auto 0 _ : Offset c o bufLen}
-      -> {auto 0 _ : LTE c n}
-      -> SubLength n
-    go 0     o = sublength n
-    go (S k) o =
-      if p (byteAtO o buf) then fromIndex (toEndIndex k) else go k (S o)
+    go : (c : Nat) -> {auto x : Ix c n} -> SubLength n
+    go 0     = fromIx x
+    go (S k) = if p (ix bv k) then fromIx x else go k
 
 findIndexOrLengthNL : {n : _} -> ByteVect n -> SubLength n
-findIndexOrLengthNL (BV {bufLen} buf off _) = go n off
+findIndexOrLengthNL bv = go n
 
   where
-    go :
-         (c,o : Nat)
-      -> {auto 0 _ : Offset c o bufLen}
-      -> {auto 0 _ : LTE c n}
-      -> SubLength n
-    go 0     o = sublength n
-    go (S k) o = case byteAtO o buf of
-      10 => fromIndex (toEndIndex k)
-      _  => go k (S o)
+    go : (c : Nat) -> {auto x : Ix c n} -> SubLength n
+    go 0     = fromIx x
+    go (S k) = case ix bv k of 10 => fromIx x; _ => go k
 
 findFromEndUntil : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> SubLength n
-findFromEndUntil p bs = go n
+findFromEndUntil p bv = go n
 
   where
     go : (k : Nat) -> (0 lt : LTE k n) => SubLength n
     go 0     = Element 0 LTEZero
-    go (S k) = if p (getByte k bs) then (Element (S k) lt) else go k
+    go (S k) = if p (atNat bv k) then (Element (S k) lt) else go k
 
 0 substrPrf : LTE (s + l) n -> LTE (o + n) n2 -> LTE ((o + s) + l) n2
 substrPrf p q =
@@ -374,7 +370,7 @@ substrPrf p q =
 ||| Like `substr` for `String`, this extracts a substring
 ||| of the given `ByteVect` at the given start position
 ||| and of the given length. O(1).
-export
+export %inline
 substring :
      (start,length : Nat)
   -> ByteVect n
@@ -387,19 +383,23 @@ substring start len (BV buf o p) =
   BV buf (o + start) (substrPrf inBounds p)
 
 export
-mapMaybe :
-     {n : _}
-  -> (Bits8 -> Maybe Bits8)
-  -> ByteVect n
-  -> ByteString
-mapMaybe f bs = generateMaybe n (\x => f $ index x bs)
+generateMaybe : (n : Nat) -> (Fin n -> Maybe Bits8) -> ByteString
+generateMaybe n f = unrestricted $ alloc n (go n n)
+
+  where
+    go : (k,m : Nat) -> (x : Ix k n) => (y : Ix m n) => MBuffer n -@ Ur ByteString
+    go (S k) (S m) m1 =
+      case f (ixToFin x) of
+        Nothing => go k (S m) m1
+        Just v  => let m2 := setIx m v m1 in go k m m2
+    go _ _ m1 = freezeByteStringLTE (ixToNat y) @{ixLTE y} m1
 
 export
-filter :
-     {n : _}
-  -> (Bits8 -> Bool)
-  -> ByteVect n
-  -> ByteString
+mapMaybe : {n : _} -> (Bits8 -> Maybe Bits8) -> ByteVect n -> ByteString
+mapMaybe f bv = generateMaybe n (f . at bv)
+
+export
+filter : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> ByteString
 filter p = mapMaybe (\b => if p b then Just b else Nothing)
 
 ||| Return a `ByteVect` with the first `n` values of
@@ -430,11 +430,7 @@ takeEnd k (BV buf o p) =
 
 ||| Remove the first `n` values from a `ByteVect`. O(1)
 export
-drop :
-     (k : Nat)
-  -> {auto 0 lt : LTE k n}
-  -> ByteVect n
-  -> ByteVect (n `minus` k)
+drop : (k : Nat) -> (0 lt : LTE k n) => ByteVect n -> ByteVect (n `minus` k)
 drop k (BV buf o p) =
   -- p        : o + n             <= bufLen
   -- lt       : k                 <= n
@@ -571,11 +567,7 @@ spanEnd p bs =
 ||| The resulting components do not contain the separators. Two adjacent
 ||| separators result in an empty component in the output. eg.
 export
-splitWith :
-     {n : _}
-  -> (Bits8 -> Bool)
-  -> ByteVect n
-  -> List ByteString
+splitWith : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> List ByteString
 splitWith p bs = go Lin n bs (sizeAccessible n)
 
   where
@@ -618,16 +610,12 @@ lines bs = go Lin n bs (sizeAccessible n)
 
 export
 isInfixOf : {m,n : _} -> ByteVect m -> ByteVect n -> Bool
-isInfixOf bv1 bv2 = m == 0 || go n 0
+isInfixOf bv1 bv2 = m == 0 || go n
 
   where
-    go : (c,o : Nat) -> (0 os : Offset c o n) => Bool
-    go 0     _ = False
-    go (S k) o =
-      let 0 prf := offsetLTE os
-       in case isPrefixOf bv1 (drop o bv2) of
-            True  => True
-            False => go k (S o)
+    go : (c : Nat) -> (x : Ix c n) => Bool
+    go 0     = False
+    go (S k) = isPrefixOf bv1 (drop (ixToNat x) @{ixLTE x} bv2) || go k
 
 --------------------------------------------------------------------------------
 --          Parsing Numbers
@@ -642,28 +630,28 @@ parseAnyNat :
   -> {auto 0 p2 : LTE base 16}
   -> ByteVect n
   -> Maybe Nat
-parseAnyNat {n = Z} _ bv = Nothing
-parseAnyNat base (BV {bufLen} buf off _) = go n off 0
+parseAnyNat {n = Z} _    bv = Nothing
+parseAnyNat         base bv = go n 0
 
   where
-    go : (c,o,res : Nat) -> (0 os : Offset c o bufLen) => Maybe Nat
-    go 0     o res = Just res
-    go (S k) o res =
-      let Just n := fromHexDigit $ byteAtO o buf | Nothing => Nothing
-       in if n < base then go k (S o) (res * base + n) else Nothing
+    go : (c,res : Nat) -> (x : Ix c n) => Maybe Nat
+    go 0     res = Just res
+    go (S k) res =
+      let Just n := fromHexDigit $ ix bv k | Nothing => Nothing
+       in if n < base then go k (res * base + n) else Nothing
 
 ||| Parses a natural number in decimal notation.
 export %inline
 parseDecimalNat : {n : _} -> ByteVect n -> Maybe Nat
 parseDecimalNat {n = Z} bv = Nothing
-parseDecimalNat (BV {bufLen} buf off _) = go n off 0
+parseDecimalNat         bv = go n 0
 
   where
-    go : (c,o,res : Nat) -> (0 os : Offset c o bufLen) => Maybe Nat
-    go 0     o res = Just res
-    go (S k) o res =
-      let Just n := fromDigit $ byteAtO o buf | Nothing => Nothing
-       in go k (S o) (res * 10 + n)
+    go : (c,res : Nat) -> (x : Ix c n) => Maybe Nat
+    go 0     res = Just res
+    go (S k) res =
+      let Just n := fromDigit $ ix bv k | Nothing => Nothing
+       in go k (res * 10 + n)
 
 export %inline
 parseHexadecimalNat : {n : _} -> ByteVect n -> Maybe Nat
@@ -704,27 +692,28 @@ exp bv =
    in Just $ pow 10.0 (cast exp)
 
 parseDotted : {n : _} -> ByteVect n -> Maybe Double
-parseDotted (BV {bufLen} buf off _) = go 0 0 n off
+parseDotted bv = go 0 0 n
   where
-    go : (v,exp,c,o : Nat) -> (0 _ : Offset c o bufLen) => Maybe Double
-    go v exp 0     o = case exp of
+    go : (v,exp,c : Nat) -> (x : Ix c n) => Maybe Double
+    go v exp 0     = case exp of
       0 => Just $ cast v
       _ => Just $ cast v / cast exp
-    go v exp (S k) o = case byteAtO o buf of
-      48 => go (v * 10 + 0) (exp * 10) k (S o)
-      49 => go (v * 10 + 1) (exp * 10) k (S o)
-      50 => go (v * 10 + 2) (exp * 10) k (S o)
-      51 => go (v * 10 + 3) (exp * 10) k (S o)
-      52 => go (v * 10 + 4) (exp * 10) k (S o)
-      53 => go (v * 10 + 5) (exp * 10) k (S o)
-      54 => go (v * 10 + 6) (exp * 10) k (S o)
-      55 => go (v * 10 + 7) (exp * 10) k (S o)
-      56 => go (v * 10 + 8) (exp * 10) k (S o)
-      57 => go (v * 10 + 9) (exp * 10) k (S o)
-      46 => case exp of
-        0 => go v 1 k (S o)
-        _ => Nothing
-      _  => Nothing
+    go v exp (S k) =
+      case ix bv k of
+        48 => go (v * 10 + 0) (exp * 10) k
+        49 => go (v * 10 + 1) (exp * 10) k
+        50 => go (v * 10 + 2) (exp * 10) k
+        51 => go (v * 10 + 3) (exp * 10) k
+        52 => go (v * 10 + 4) (exp * 10) k
+        53 => go (v * 10 + 5) (exp * 10) k
+        54 => go (v * 10 + 6) (exp * 10) k
+        55 => go (v * 10 + 7) (exp * 10) k
+        56 => go (v * 10 + 8) (exp * 10) k
+        57 => go (v * 10 + 9) (exp * 10) k
+        46 => case exp of
+          0 => go v 1 k
+          _ => Nothing
+        _  => Nothing
 
 parsePosDbl : {n : _} -> ByteVect n -> Maybe Double
 parsePosDbl bv = case parseDotted bv of

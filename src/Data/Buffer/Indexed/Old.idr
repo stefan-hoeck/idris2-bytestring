@@ -1,0 +1,162 @@
+module Data.Buffer.Indexed.Old
+
+-- import Algebra.Solver.Semiring
+-- import Network.FFI
+-- import Network.Socket.Raw
+-- import System.File
+-- import public Data.Buffer
+-- import public Data.Buffer.Index
+-- import public Data.Nat.BSExtra
+--
+-- %default total
+--
+--
+-- ||| Copy the given `ByteString` and write its content to a freshly
+-- ||| allocated buffer.
+-- export
+-- toBuffer : ByteString -> IO Buffer
+-- toBuffer (BS s $ BV (Buf buf) o _) = do
+--   b2 <- pure $ prim__newBuf (cast s)
+--   fromPrim $ prim__copy buf (cast o) (cast s) b2 0
+--   pure b2
+--
+-- --------------------------------------------------------------------------------
+-- --          IBuffer
+-- --------------------------------------------------------------------------------
+--
+-- ||| Reads the value of a `ByteString` at the given position
+-- export %inline
+-- byteAtO : (o : Nat) -> IBuffer n -> (0 off : Offset (S c) o n) => Bits8
+-- byteAtO o buf = byteAt o buf {lt = offsetLTE off}
+--
+-- ||| Reads the value of a `ByteString` conting from the end of the buffer
+-- export %inline
+-- byteFromEnd :
+--      {end : _}
+--   -> (x : Nat)
+--   -> {auto 0 lt : LT x end}
+--   -> IBuffer n
+--   -> {auto 0 lte : LTE end n}
+--   -> Bits8
+-- byteFromEnd x (Buf buf) =
+--   prim__getByte buf (natToInteger end - natToInteger x - 1)
+--
+-- %inline
+-- writeByte :  (x : Nat) -> (v : Bits8) -> Buffer -> PrimIO ()
+-- writeByte x v buf = prim__setByte buf (cast x) v
+--
+-- public export
+-- totLength : List ByteString -> Nat
+-- totLength []             = 0
+-- totLength (BS n _ :: xs) = n + totLength xs
+--
+-- export
+-- concatBuffer : (ps  : List ByteString) -> IBuffer (totLength ps)
+-- concatBuffer ps =
+--   unsafe $ go ps 0 (prim__newBuf $ cast $ totLength ps) Refl
+--   where
+--     go :
+--          (qs : List ByteString)
+--       -> (o  : Nat)
+--       -> Buffer
+--       -> (0 prf : (o + totLength qs) === totLength ps)
+--       -> PrimIO (IBuffer $ totLength ps)
+--     go []                               o buf prf w = MkIORes (Buf buf) w
+--     go (BS 0 _                   :: xs) o buf prf w = go xs o buf prf w
+--     go (BS k (BV (Buf src) so _) :: xs) o buf prf w =
+--       let MkIORes () w2 := prim__copy src (cast so) (cast k) buf (cast o) w
+--           0 pp := solveNat [k, o, totLength xs]
+--                    ((k .+. o) +. totLength xs)
+--                    (o .+ (k .+. totLength xs))
+--        in go xs (k + o) buf (trans pp prf) w2
+--
+--
+-- --------------------------------------------------------------------------------
+-- --          Reading and Writing from and to Files
+-- --------------------------------------------------------------------------------
+--
+-- ||| Wrappes a mutable buffer in an `IBuffer`.
+-- |||
+-- ||| Client code is responsible to make sure the original buffer is no longer
+-- ||| used.
+-- export
+-- unsafeMakeBuffer : Buffer -> IBuffer k
+-- unsafeMakeBuffer = Buf
+--
+-- ||| Wrappes a mutable of known size in a `ByteString`.
+-- |||
+-- ||| Client code is responsible to make sure the original buffer is no longer
+-- ||| used.
+-- export
+-- unsafeByteString : (k : Nat) -> Buffer -> ByteString
+-- unsafeByteString k b = BS k $ BV (unsafeMakeBuffer {k} b) 0 %search
+--
+-- export
+-- readBuffer :  HasIO io => Nat -> File -> io (Either FileError (k ** IBuffer k))
+-- readBuffer max f =
+--   let buf  := prim__newBuf (cast max)
+--    in do
+--     Right read <- readBufferData f buf 0 (cast max)
+--       | Left err => pure (Left err)
+--     if read >= 0
+--        then pure (Right (cast read ** Buf buf))
+--        else pure (Left FileReadError)
+--
+-- export
+-- writeBuffer :
+--      {auto _ : HasIO io}
+--   -> File
+--   -> (offset,size : Nat)
+--   -> IBuffer n
+--   -> io (Either (FileError,Int) ())
+-- writeBuffer h o s (Buf buf) = writeBufferData h buf (cast o) (cast s)
+--
+-- export
+-- readByteString :
+--      {auto _ : HasIO io}
+--   -> Nat
+--   -> File
+--   -> io (Either FileError ByteString)
+-- readByteString max f = do
+--   Right (k ** buf) <- readBuffer max f | Left err => pure (Left err)
+--   pure $ Right (BS k $ BV buf 0 refl)
+--
+-- export %inline
+-- writeByteVect :
+--      {n : _}
+--   -> {auto _ : HasIO io}
+--   -> File
+--   -> ByteVect n
+--   -> io (Either (FileError,Int) ())
+-- writeByteVect h (BV buf o _) = writeBuffer h o n buf
+--
+-- export %inline
+-- writeByteString :
+--      {auto _ : HasIO io}
+--   -> File
+--   -> ByteString
+--   -> io (Either (FileError,Int) ())
+-- writeByteString h (BS n bs) = writeByteVect h bs
+--
+-- export
+-- recvBuffer :
+--      {auto _ : HasIO io}
+--   -> Nat
+--   -> Socket
+--   -> io (Either SocketError (k ** IBuffer k))
+-- recvBuffer max sock = do
+--   Just buffer <- newBuffer (cast max) | Nothing => pure $ Left (-1)
+--   ret <- primIO $ prim__idrnet_recv_bytes sock.descriptor buffer (cast max) 0
+--   case ret >= 0 of
+--     False => pure $ Left ret
+--     True  => pure $ Right (cast ret ** Buf buffer)
+--
+-- export
+-- recvByteString :
+--      {auto _ : HasIO io}
+--   -> Nat
+--   -> Socket
+--   -> io (Either SocketError ByteString)
+-- recvByteString max sock = do
+--   Right (k ** buf) <- recvBuffer max sock | Left err => pure (Left err)
+--   pure $ Right (BS k $ BV buf 0 refl)

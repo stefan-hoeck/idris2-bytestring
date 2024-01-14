@@ -1,11 +1,14 @@
 ||| Immutable strings of raw bytes.
 module Data.ByteString
 
+import Data.Buffer
+import Data.Maybe0
 import Data.Nat.BSExtra
-import Data.Buffer.Index
-import Data.Buffer.Indexed
-import Data.ByteVect
-import System.File
+
+import public Data.ByteVect
+-- import Data.Buffer.Index
+-- import Data.Buffer.Indexed
+-- import System.File
 
 %default total
 
@@ -25,7 +28,7 @@ length (BS n _) = n
 ||| Tries to read the value of a `ByteString` at the given position
 export
 index : (x : Nat) -> ByteString -> Maybe Bits8
-index x (BS n repr) = (`index` repr) <$> refineIndex {n} x
+index x (BS n repr) = at repr <$> tryNatToFin x
 
 --------------------------------------------------------------------------------
 --          Making ByteStrings
@@ -36,16 +39,10 @@ export %inline
 empty : ByteString
 empty = BS 0 empty
 
-||| Converts a list of values to a `ByteString` using
-||| the given conversion function. O(n).
-export %inline
-fromList : (a -> Bits8) -> (as : List a) -> ByteString
-fromList f as = BS (length as) (fromList f as)
-
 ||| Converts a list of `Bits8` values to a `ByteString`.
 export %inline
 pack : (as : List Bits8) -> ByteString
-pack = fromList id
+pack as = BS _ $ pack as
 
 ||| Creates a `ByteString` holding a single `Bits8` value.
 export %inline
@@ -92,7 +89,7 @@ FromString ByteString where
 --------------------------------------------------------------------------------
 
 export %inline
-generate : (n : Nat) -> (Index n -> Bits8) -> ByteString
+generate : (n : Nat) -> (Fin n -> Bits8) -> ByteString
 generate n f = BS n (generate n f)
 
 export
@@ -103,20 +100,21 @@ replicate n = generate n . const
 --          Concatenating ByteStrings
 --------------------------------------------------------------------------------
 
+--TODO
 ||| Concatenate a list of `ByteString`. This allocates
 ||| a buffer of sufficient size in advance, so it is much
 ||| faster than `concat`, or `concatMap` for large `ByteString`s.
 export
 fastConcat :  (bs : List ByteString) -> ByteString
-fastConcat bs =
-   BS (totLength bs) $ BV (concatBuffer bs) 0 refl
+-- fastConcat bs =
+--    BS (totLength bs) $ BV (concatBuffer bs) 0 refl
 
 ||| Concatenate two `ByteString`s. O(n + m).
 export %inline
 append : ByteString -> ByteString -> ByteString
-append (BS 0 _) b2       = b2
-append b1       (BS 0 _) = b1
-append b1 b2             = fastConcat [b1,b2]
+append (BS 0 _)   b2         = b2
+append b1         (BS 0 _)   = b1
+append (BS m bv1) (BS n bv2) = BS _ $ append bv1 bv2
 
 ||| Prepend a single `Bits8` to a `ByteString`. O(n).
 export %inline
@@ -230,7 +228,7 @@ foldr f ini (BS n bs) = foldr f ini bs
 ||| satisfying the predicate.
 export %inline
 findIndex : (Bits8 -> Bool) -> ByteString -> Maybe Nat
-findIndex p (BS n bs) = fst <$> findIndex p bs
+findIndex p (BS n bs) = finToNat <$> findIndex p bs
 
 ||| Return the index of the first occurence of the given
 ||| byte in the `ByteString`, or `Nothing`, if the byte
@@ -264,11 +262,12 @@ isSuffixOf (BS _ bv1) (BS _ bv2) = isSuffixOf bv1 bv2
 ||| and of the given length.
 export
 substring : (start,length : Nat) -> ByteString -> ByteString
-substring s l (BS n bs) = case tryLTE (s+l) n of
-  Just0 p  => BS l (substring s l bs)
-  Nothing0 => case tryLTE s n of
-    Just0 p  => BS (n `minus` s) (drop s bs)
-    Nothing0 => empty
+substring s l (BS n bs) =
+  case tryLTE (s+l) of
+    Just0 p  => BS l (substring s l bs)
+    Nothing0 => case tryLTE s of
+      Just0 p  => BS (n `minus` s) (drop s bs)
+      Nothing0 => empty
 
 export
 mapMaybe : (Bits8 -> Maybe Bits8) -> ByteString -> ByteString
@@ -283,39 +282,44 @@ filter p (BS n bs) = filter p bs
 ||| `k` is larger than the bytestring. O(1)
 export
 take : Nat -> ByteString -> ByteString
-take k (BS n bs) = case tryLTE k n of
-  Just0 p  => BS k (take k bs)
-  Nothing0 => BS n bs
+take k (BS n bs) =
+  case tryLTE k of
+    Just0 p  => BS k (take k bs)
+    Nothing0 => BS n bs
 
 ||| Return a `ByteString` with the last `n` values of
 ||| the input string. O(1)
 export
 takeEnd : Nat -> ByteString -> ByteString
-takeEnd k (BS n bs) = case tryLTE k n of
-  Just0 p  => BS k (takeEnd k bs)
-  Nothing0 => BS n bs
+takeEnd k (BS n bs) =
+  case tryLTE k of
+    Just0 p  => BS k (takeEnd k bs)
+    Nothing0 => BS n bs
 
 ||| Remove the first `n` values from a `ByteString`. O(1)
 export
 drop : Nat -> ByteString -> ByteString
-drop k (BS n bs) = case tryLTE k n of
-  Just0 p  => BS (n `minus` k) (drop k bs)
-  Nothing0 => empty
+drop k (BS n bs) =
+  case tryLTE k of
+    Just0 p  => BS (n `minus` k) (drop k bs)
+    Nothing0 => empty
 
 ||| Remove the last `n` values from a `ByteString`. O(1)
 export
 dropEnd : Nat -> ByteString -> ByteString
-dropEnd k (BS n bs) = case tryLTE k n of
-  Just0 p  => BS (n `minus` k) (dropEnd k bs)
-  Nothing0 => empty
+dropEnd k (BS n bs) =
+  case tryLTE k of
+    Just0 p  => BS (n `minus` k) (dropEnd k bs)
+    Nothing0 => empty
 
 export
 splitAt : (k : Nat) -> ByteString -> Maybe (ByteString,ByteString)
-splitAt k (BS n bs) = case tryLTE k n of
-  Just0 p  =>
-    let (bs1,bs2) := splitAt k bs
-     in Just (BS k bs1, BS (n `minus` k) bs2)
-  Nothing0 => Nothing
+splitAt k (BS n bs) =
+  case tryLTE k of
+    Just0 p  =>
+      let (bs1,bs2) := splitAt k bs
+       in Just (BS k bs1, BS (n `minus` k) bs2)
+    Nothing0 => Nothing
 
 ||| Extracts the longest prefix of elements satisfying the
 ||| predicate.

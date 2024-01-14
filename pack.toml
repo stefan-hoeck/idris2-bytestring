@@ -14,8 +14,8 @@ type   = "local"
 path   = "profile"
 ipkg   = "profile.ipkg"
 
-[custom.all.profiler]
+[custom.all.array]
 type   = "github"
-url    = "https://github.com/stefan-hoeck/idris2-profiler"
-commit = "latest:main"
-ipkg   = "profiler.ipkg"
+url    = "https://github.com/stefan-hoeck/idris2-array"
+commit = "latest:buffer"
+ipkg   = "array.ipkg"
