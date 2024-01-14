@@ -17,5 +17,5 @@ ipkg   = "profile.ipkg"
 [custom.all.array]
 type   = "github"
 url    = "https://github.com/stefan-hoeck/idris2-array"
-commit = "latest:buffer"
+commit = "latest:main"
 ipkg   = "array.ipkg"
