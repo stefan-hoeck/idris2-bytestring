@@ -7,9 +7,6 @@ import Data.Maybe0
 import Data.Nat.BSExtra
 
 import public Data.ByteVect as BV
--- import Data.Buffer.Index
--- import Data.Buffer.Indexed
--- import System.File
 
 %default total
 
@@ -96,6 +93,10 @@ generate n f = BS n (generate n f)
 export
 replicate : (n : Nat) -> Bits8 -> ByteString
 replicate n = generate n . const
+
+export
+unsafeByteString : (n : Nat) -> Buffer -> ByteString
+unsafeByteString n buf = BS n (BV (unsafeMakeBuffer buf) 0 reflexive)
 
 --------------------------------------------------------------------------------
 --          Concatenating ByteStrings
