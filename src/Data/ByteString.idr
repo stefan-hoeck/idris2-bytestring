@@ -98,6 +98,14 @@ export
 unsafeByteString : (n : Nat) -> Buffer -> ByteString
 unsafeByteString n buf = BS n (BV (unsafeMakeBuffer buf) 0 reflexive)
 
+||| Copy the given `ByteString` and write its content to a freshly
+||| allocated buffer.
+export
+toBuffer : ByteString -> IO Buffer
+toBuffer (BS n (BV b o lt)) =
+  unrestricted $ alloc n $ \m =>
+    let m2 := copy b o 0 n m in toIO m2
+
 --------------------------------------------------------------------------------
 --          Concatenating ByteStrings
 --------------------------------------------------------------------------------
