@@ -3,13 +3,12 @@ version    = 0.0.1
 authors    = "Stefan Höck"
 depends    = base    >= 0.5.1
            , algebra
+           , array
            , network
 
 brief      = "Immutable byte vectors for Idris2"
 
-modules    = Data.Buffer.Index
-           , Data.Buffer.Indexed
-           , Data.Byte
+modules    = Data.Byte
            , Data.ByteString
            , Data.ByteVect
            , Data.Nat.BSExtra

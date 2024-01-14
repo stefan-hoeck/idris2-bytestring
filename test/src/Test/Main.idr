@@ -2,7 +2,7 @@ module Test.Main
 
 import Data.Buffer.Indexed
 import Data.Byte
-import Data.ByteString
+import Data.ByteString as BS
 import Data.List
 import Data.Maybe
 import Data.String
@@ -84,7 +84,7 @@ dblString =
 unpackPack : Property
 unpackPack = property $ do
   bs <- forAll byteList
-  bs === unpack (pack bs)
+  bs === unpack (ByteString.pack bs)
 
 packUnpack : Property
 packUnpack = property $ do
@@ -146,7 +146,7 @@ appendAssociative = property $ do
 prop_fastConcat : Property
 prop_fastConcat = property $ do
   bss <- forAll (list (linear 0 10) byteList)
-  ByteString.fastConcat (pack <$> bss) === pack (concat bss)
+  ByteString.fastConcat (pack <$> bss) === BS.pack (concat bss)
 
 consHead : Property
 consHead = property $ do
@@ -173,7 +173,7 @@ prop_substring = property $ do
   [start,len,str] <- forAll $ np [smallNat,smallNat,asciiString]
   let ss = substring start len (fromString str)
 
-  fromString (substr (cast start) (cast len) str) ===
+  the ByteString (fromString (substr (cast start) (cast len) str)) ===
   substring start len (fromString str)
 
 reverseReverse : Property
@@ -187,23 +187,23 @@ fun b = if b < 128 then Just (128 - b) else Nothing
 prop_mapMaybeId : Property
 prop_mapMaybeId = property $ do
   bs <- forAll byteList
-  mapMaybe Just (pack bs) === pack bs
+  BS.mapMaybe Just (pack bs) === BS.pack bs
 
 prop_mapMaybe : Property
 prop_mapMaybe = property $ do
   bs <- forAll byteList
-  footnote "pack bs = \{show $ pack bs}"
-  mapMaybe fun (pack bs) === pack (mapMaybe fun bs)
+  footnote "pack bs = \{show $ BS.pack bs}"
+  BS.mapMaybe fun (pack bs) === BS.pack (mapMaybe fun bs)
 
 prop_filter : Property
 prop_filter = property $ do
   bs <- forAll byteList
-  filter (< 100) (pack bs) === pack (filter (< 100) bs)
+  BS.filter (< 100) (pack bs) === BS.pack (filter (< 100) bs)
 
 prop_take : Property
 prop_take = property $ do
   [n,bs] <- forAll $ np [nat (linear 0 30), byteList]
-  take (cast n) (pack bs) === pack (take n bs)
+  BS.take (cast n) (pack bs) === BS.pack (take n bs)
 
 prop_takeEnd : Property
 prop_takeEnd = property $ do
@@ -213,7 +213,7 @@ prop_takeEnd = property $ do
 prop_drop : Property
 prop_drop = property $ do
   [n,bs] <- forAll $ np [nat (linear 0 30), byteList]
-  drop (cast n) (pack bs) === pack (drop n bs)
+  BS.drop (cast n) (pack bs) === BS.pack (drop n bs)
 
 prop_dropEnd : Property
 prop_dropEnd = property $ do
@@ -223,8 +223,8 @@ prop_dropEnd = property $ do
 prop_takeWhile : Property
 prop_takeWhile = property $ do
   bs <- forAll byteList
-  takeWhile (< 100) (pack bs) ===
-  pack (takeWhile (< 100) bs)
+  BS.takeWhile (< 100) (pack bs) ===
+  BS.pack (takeWhile (< 100) bs)
 
 prop_takeWhileEnd : Property
 prop_takeWhileEnd = property $ do
@@ -268,12 +268,12 @@ prop_suffix = property $ do
 prop_parseDecimalNat : Property
 prop_parseDecimalNat = property $ do
   bits <- forAll natString
-  parseDecimalNat (pack bits) === parsePositive (pack $ map cast bits)
+  BS.parseDecimalNat (BS.pack bits) === parsePositive (pack $ map cast bits)
 
 prop_parseInteger : Property
 prop_parseInteger = property $ do
   bits <- forAll intString
-  parseInteger (pack bits) === String.parseInteger (pack $ map cast bits)
+  BS.parseInteger (BS.pack bits) === String.parseInteger (pack $ map cast bits)
 
 doubleEq : Maybe Double -> Maybe Double -> Bool
 doubleEq Nothing  Nothing  = True
@@ -286,7 +286,7 @@ prop_parseDouble : Property
 prop_parseDouble = property $ do
   bits <- forAll dblString
   let str := Prelude.pack $ map cast bits
-      mx  := parseDouble (pack bits)
+      mx  := BS.parseDouble (BS.pack bits)
       my  := String.parseDouble str
   footnote "string: \{str}"
   footnote "mx: \{show mx}"
