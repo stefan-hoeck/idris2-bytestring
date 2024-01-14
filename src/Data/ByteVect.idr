@@ -203,7 +203,7 @@ uncons bs = (head bs, tail bs)
 ||| Read the last `Bits8` from a `ByteVect`. O(1).
 export
 last : {n : _} -> ByteVect (S n) -> Bits8
-last bs = ix bs n
+last bs = atNat bs n
 
 ||| Drop the last `Bits8` from a `ByteVect`. O(1).
 export
