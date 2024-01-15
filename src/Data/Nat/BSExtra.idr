@@ -58,10 +58,15 @@ export
 lteAddRight x lt = rewrite plusCommutative n x in lteAddLeft x lt
 
 export
-tryLTE : {n : _} -> (k : Nat) -> Maybe0 (LT k n)
-tryLTE k with (k < n) proof eq
+tryLT : {n : _} -> (k : Nat) -> Maybe0 (LT k n)
+tryLT k with (k < n) proof eq
   _ | True  = Just0 $ ltOpReflectsLT k n eq
   _ | False = Nothing0
+
+export
+tryLTE : {n : _} -> (k : Nat) -> Maybe0 (LTE k n)
+tryLTE 0     = Just0 %search
+tryLTE (S k) = tryLT k
 
 export
 0 concatLemma1 : {0 k,m,n : Nat} -> LTE (k + m) (k + (m+n))
