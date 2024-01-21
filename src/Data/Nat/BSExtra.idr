@@ -81,12 +81,6 @@ export
 lteMinus n = rewrite minusZeroRight n in reflexive
 
 export
-0 minusLTE : (m,n : Nat) -> LTE (m `minus` n) m
-minusLTE 0 n         = LTEZero
-minusLTE (S k) 0     = reflexive
-minusLTE (S k) (S j) = lteSuccRight (minusLTE k j)
-
-export
 0 minusLT : (m,n : Nat) -> (lt : LT m n) -> LT (minus n (S m)) n
 minusLT 0     (S l) lt           = lteMinus l
 minusLT (S k) (S l) (LTESucc lt) =
