@@ -625,8 +625,20 @@ blocksLemma1 m n = LTESucc $ minusLTE _ _
 0 blocksLemma2 : (m,n : Nat) -> LTE (S k) n -> LT (n `minus` S m) n
 blocksLemma2 m (S _) (LTESucc _) = blocksLemma1 m _
 
+||| Splits the second byte vector whenever the first called
+||| `sep` occurs.
+|||
+||| The bytestrings in the result no longer contain `sep` as
+||| a substring.
+|||
+||| Note: If `sep` is the empty byte vector, `[BS n val]` is returned
+|||       as the result.
 export
-splitAtSubstring : {k,n : _} -> ByteVect k -> ByteVect n -> List ByteString
+splitAtSubstring :
+     {k,n : _}
+  -> (sep : ByteVect k)
+  -> (val : ByteVect n)
+  -> List ByteString
 splitAtSubstring {k = 0}   sep bv = [BS _ bv]
 splitAtSubstring {k = S m} sep bv = go [<] bv (sizeAccessible n)
   where
@@ -638,7 +650,7 @@ splitAtSubstring {k = S m} sep bv = go [<] bv (sizeAccessible n)
     go sb body (Access rec) =
       let MkBreakRes l1 l2 b1 b2 p1 := breakAtSubstring sep body
        in case tryLTE {n = l2} (S m) of
-            Nothing0 => sb <>> (if l1 == 0 then [] else [BS l1 b1])
+            Nothing0 => sb <>> [BS l1 b1]
             Just0 p2  =>
               let 0 p3 := lteAddLeft {m = l2} l1 reflexive
                   0 p4 := blocksLemma2 m l2 p2
