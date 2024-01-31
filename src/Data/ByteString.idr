@@ -3,6 +3,7 @@ module Data.ByteString
 
 import Data.Buffer
 import Data.Buffer.Mutable
+import Data.List
 import Data.Maybe0
 import Data.Nat.BSExtra
 
@@ -137,6 +138,24 @@ fastConcat :  (bs : List ByteString) -> ByteString
 fastConcat bs =
   unrestricted $ alloc (TotLength bs) $ \m1 =>
     let m2 := copyMany bs 0 m1 in freezeByteString m2
+
+||| Concatenates a list of bytestrings, separating them with the
+||| given separator `sep`.
+export %inline
+concatSep : (sep : ByteString) -> (bs : List ByteString) -> ByteString
+concatSep sep = fastConcat . intersperse sep
+
+||| Concatenates a list of bytestrings, using the given byte to
+||| separate them.
+export %inline
+concatSep1 : (sep : Bits8) -> (bs : List ByteString) -> ByteString
+concatSep1 = concatSep . singleton
+
+||| Concatenates the given list of bytestring by interspersing them
+||| with Unix linebreaks (byte `0x0A`).
+export %inline
+unixUnlines : List ByteString -> ByteString
+unixUnlines = concatSep1 0x0A
 
 ||| Concatenate two `ByteString`s. O(n + m).
 export %inline
@@ -436,6 +455,32 @@ splitWith p (BS n bs) = splitWith p bs
 export %inline
 split : Bits8 -> ByteString -> List ByteString
 split b = splitWith (b ==)
+
+||| Returns the longest (possibly empty) prefix of a
+||| bytestring that does not contain the given substring
+||| plus the remainder of the byte vector.
+export %inline
+breakAtSubstring : (sep,val : ByteString) -> (ByteString,ByteString)
+breakAtSubstring (BS _ s) (BS _ v) =
+  let MkBreakRes _ _ x y _ := breakAtSubstring s v
+   in (BS _ x, BS _ y)
+
+||| Splits the second bytestring whenever the first called
+||| `sep` occurs.
+|||
+||| The bytestrings in the result no longer contain `sep` as
+||| a substring.
+|||
+||| Note: If `sep` is the empty bytestring, `[val]` is returned
+|||       as the result.
+export %inline
+splitAtSubstring : (sep, val : ByteString) -> List ByteString
+splitAtSubstring (BS _ s) (BS _ v) = splitAtSubstring s v
+
+||| Breakes the given bytestring at Unix linebreaks (byte `0x0A`).
+export %inline
+unixLines : ByteString -> List ByteString
+unixLines (BS _ bv) = lines bv
 
 --------------------------------------------------------------------------------
 --          Parsing Numbers

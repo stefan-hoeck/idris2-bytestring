@@ -260,6 +260,24 @@ prop_prefix = property $ do
   [bs1,bs2] <- forAll $ np [bytestring,bytestring]
   isPrefixOf bs1 bs2 === isPrefixOf (unpack bs1) (unpack bs2)
 
+prop_unlines : Property
+prop_unlines = property $ do
+  bss <- forAll (list (linear 0 30) bytestring)
+  let bs := unixUnlines bss
+  bs === unixUnlines (unixLines bs)
+
+prop_split : Property
+prop_split = property $ do
+  [bss,b] <- forAll $ np [list (linear 0 30) bytestring, byte]
+  let bs := concatSep1 b bss
+  bs === concatSep1 b (split b bs)
+
+prop_splitAtSubstring : Property
+prop_splitAtSubstring = property $ do
+  [bss,b] <- forAll $ np [list (linear 0 30) bytestring, bytestring]
+  let bs := concatSep b bss
+  bs === concatSep b (splitAtSubstring b bs)
+
 prop_suffix : Property
 prop_suffix = property $ do
   [bs1,bs2] <- forAll $ np [bytestring,bytestring]
@@ -327,6 +345,9 @@ main = test . pure $ MkGroup "ByteString"
   , ("prop_infix", prop_infix)
   , ("prop_prefix", prop_prefix)
   , ("prop_suffix", prop_suffix)
+  , ("prop_unlines", prop_unlines)
+  , ("prop_split", prop_split)
+  , ("prop_splitAtSubstring", prop_splitAtSubstring)
   , ("prop_parseDecimalNat", prop_parseDecimalNat)
   , ("prop_parseInteger", prop_parseInteger)
   , ("prop_parseDouble", prop_parseDouble)
