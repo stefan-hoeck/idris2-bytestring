@@ -1,5 +1,6 @@
 module Data.ByteVect
 
+import Data.Maybe0
 import Control.WellFounded
 import Data.Buffer
 import Data.Buffer.Mutable
@@ -517,34 +518,29 @@ record BreakRes (n : Nat) where
   snd    : ByteVect lenSnd
   0 prf  : LTE (lenFst + lenSnd) n
 
-||| Returns the longest (possibly empty) prefix of elements which do not
-||| satisfy the predicate and the remainder of the string.
 export
-break : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> BreakRes n
-break p bs =
-  let Element k p := findIndexOrLength p bs
-      bs1 := take k bs
+breakRes : {n : _} -> ByteVect n -> SubLength n -> BreakRes n
+breakRes bs (Element k p) =
+  let bs1 := take k bs
       bs2 := drop k bs
    in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinusLTE k n p)
 
+||| Returns the longest (possibly empty) prefix of elements which do not
+||| satisfy the predicate and the remainder of the string.
+export %inline
+break : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> BreakRes n
+break p bs = breakRes bs (findIndexOrLength p bs)
+
 ||| Returns the longest (possibly empty) prefix before the first newline character
-export
+export %inline
 breakNL : {n : _} -> ByteVect n -> BreakRes n
-breakNL bs =
-  let Element k p := findIndexOrLengthNL bs
-      bs1 := take k bs
-      bs2 := drop k bs
-   in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinusLTE k n p)
+breakNL bs = breakRes bs (findIndexOrLengthNL bs)
 
 ||| Returns the longest (possibly empty) suffix of elements which do not
 ||| satisfy the predicate and the remainder of the string.
-export
+export %inline
 breakEnd : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> BreakRes n
-breakEnd  p bs =
-  let Element k p := findFromEndUntil p bs
-      bs1 := take k bs
-      bs2 := drop k bs
-   in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinusLTE k n p)
+breakEnd  p bs = breakRes bs (findFromEndUntil p bs)
 
 ||| Returns the longest (possibly empty) prefix of elements
 ||| satisfying the predicate and the remainder of the string.
@@ -554,13 +550,28 @@ span p = break (not . p)
 
 ||| Returns the longest (possibly empty) suffix of elements
 ||| satisfying the predicate and the remainder of the string.
-export
+export %inline
 spanEnd : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> BreakRes n
-spanEnd p bs =
-  let Element k p := findFromEndUntil (not . p) bs
-      bs1 := take k bs
-      bs2 := drop k bs
-   in MkBreakRes k (n `minus` k) bs1 bs2 (plusMinusLTE k n p)
+spanEnd p bs = breakRes bs (findFromEndUntil (not . p) bs)
+
+||| Returns the index where the given substring occurs in the
+||| given bytevector for the first time
+export
+substringIndex : {k,n : _} -> ByteVect k -> ByteVect n -> SubLength n
+substringIndex sep bv = go n
+
+  where
+    go : (c : Nat) -> {auto x : Ix c n} -> SubLength n
+    go 0     = fromIx x
+    go (S k) =
+      if isPrefixOf sep (drop (ixToNat x) @{ixLTE x} bv) then fromIx x else go k
+
+||| Returns the longest (possibly empty) prefix of a
+||| byte vector that does not contain the given substring
+||| plus the remainder of the byte vector.
+export %inline
+breakAtSubstring : {k,n : _} -> ByteVect k -> ByteVect n -> BreakRes n
+breakAtSubstring sep bs = breakRes bs (substringIndex sep bs)
 
 ||| Splits a 'ByteVect' into components delimited by
 ||| separators, where the predicate returns True for a separator element.
@@ -607,6 +618,32 @@ lines bs = go Lin n bs (sizeAccessible n)
       MkBreakRes l1 0      b1 _  p => sb <>> [BS l1 b1]
       MkBreakRes l1 (S l2) b1 b2 p =>
         go (sb :< BS l1 b1) l2 (tail b2) (rec l2 $ ltPlusSuccRight' _ p)
+
+0 blocksLemma1 : (m,n : Nat) -> LT (S n `minus` S m) (S n)
+blocksLemma1 m n = LTESucc $ minusLTE _ _
+
+0 blocksLemma2 : (m,n : Nat) -> LTE (S k) n -> LT (n `minus` S m) n
+blocksLemma2 m (S _) (LTESucc _) = blocksLemma1 m _
+
+export
+splitAtSubstring : {k,n : _} -> ByteVect k -> ByteVect n -> List ByteString
+splitAtSubstring {k = 0}   sep bv = [BS _ bv]
+splitAtSubstring {k = S m} sep bv = go [<] bv (sizeAccessible n)
+  where
+    go : {o : _}
+      -> SnocList ByteString
+      -> (body  : ByteVect o)
+      -> (0 acc : SizeAccessible o)
+      -> List ByteString
+    go sb body (Access rec) =
+      let MkBreakRes l1 l2 b1 b2 p1 := breakAtSubstring sep body
+       in case tryLTE {n = l2} (S m) of
+            Nothing0 => sb <>> (if l1 == 0 then [] else [BS l1 b1])
+            Just0 p2  =>
+              let 0 p3 := lteAddLeft {m = l2} l1 reflexive
+                  0 p4 := blocksLemma2 m l2 p2
+                  0 p5 := transitive (transitive p4 p3) p1
+               in go (sb :< BS l1 b1) (drop (S m) b2) (rec _ p5)
 
 export
 isInfixOf : {m,n : _} -> ByteVect m -> ByteVect n -> Bool
