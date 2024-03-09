@@ -37,8 +37,8 @@ export
 0 plusMinus : (m,n : Nat) -> LTE m n -> m + (n `minus` m) === n
 plusMinus 0 0         _           = Refl
 plusMinus 0 (S k)     x           = Refl
-plusMinus (S k) 0     x           = absurd x
 plusMinus (S k) (S j) (LTESucc p) = cong S $ plusMinus k j p
+plusMinus (S k) 0     x impossible
 
 export
 0 plusMinusLTE : (m,n : Nat) -> LTE m n -> LTE (m + (n `minus` m)) n
@@ -85,4 +85,4 @@ export
 minusLT 0     (S l) lt           = lteMinus l
 minusLT (S k) (S l) (LTESucc lt) =
   let lt' := minusLT k l lt in lteSuccRight lt'
-minusLT 0     0     lt           = absurd lt
+minusLT 0     0     lt impossible
