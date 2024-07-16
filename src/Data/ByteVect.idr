@@ -41,13 +41,13 @@ conv (MkBang v) = MkBang $ BS n (BV v 0 reflexive)
 
 ||| Safely wrap a mutable buffer in a `ByteString`.
 export
-freezeByteString : {n : _} -> MBuffer n -@ Ur ByteString
-freezeByteString mb = conv $ freeze mb
+freezeByteString : {n : _} -> WithMBufferUr n ByteString
+freezeByteString t = conv $ freeze t
 
 ||| Safely wrap a mutable buffer in a `ByteString`.
 export
-freezeByteStringLTE : (m : Nat) -> (0 _ : LTE m n) => MBuffer n -@ Ur ByteString
-freezeByteStringLTE m mb = conv $ freezeLTE m mb
+freezeByteStringLTE : (m : Nat) -> (0 p : LTE m n) => WithMBufferUr n ByteString
+freezeByteStringLTE m t = conv $ freezeLTE m @{p} t
 
 ||| Reads the value of a `ByteVect` at the given position
 export %inline
@@ -166,9 +166,9 @@ replicate n = generate n . const
 export
 append : {m,n : _} -> ByteVect m -> ByteVect n -> ByteVect (m + n)
 append (BV src1 o1 lte1) (BV src2 o2 lte2) =
-  let buf := unrestricted $ Buffer.Core.alloc (m+n) $ \b1 =>
-              let b2 := copy src1 o1 0 m @{lte1} @{lteAddRight _} b1
-                  b3 := copy src2 o2 m n @{lte2} @{reflexive} b2
+  let buf := Buffer.Core.allocUr (m+n) $ \b1 =>
+              let b2 := copy {n = m+n} src1 () o1 0 m @{lte1} @{lteAddRight _} b1
+                  b3 := copy src2 () o2 m n @{lte2} @{reflexive} b2
                in freeze b3
    in BV buf 0 reflexive
 
@@ -385,10 +385,10 @@ substring start len (BV buf o p) =
 
 export
 generateMaybe : (n : Nat) -> (Fin n -> Maybe Bits8) -> ByteString
-generateMaybe n f = unrestricted $ alloc n (go n n)
+generateMaybe n f = allocUr n (go n n)
 
   where
-    go : (k,m : Nat) -> (x : Ix k n) => (y : Ix m n) => MBuffer n -@ Ur ByteString
+    go : (k,m : Nat) -> (x : Ix k n) => (y : Ix m n) => WithMBufferUr n ByteString
     go (S k) (S m) m1 =
       case f (ixToFin x) of
         Nothing => go k (S m) m1
