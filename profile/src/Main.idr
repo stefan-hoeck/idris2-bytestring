@@ -1,13 +1,14 @@
 module Main
 
-import Data.Buffer.Index
+import Data.Array.Index
+import Data.Buffer
 import Data.Buffer.Indexed
-import Data.Nat.BSExtra
+import Data.Byte
 import Data.ByteString
 import Data.ByteVect
-import Data.Byte
 import Data.List
 import Data.List1
+import Data.Nat.BSExtra
 import Data.String
 import Profile
 
@@ -16,7 +17,7 @@ toChar 10 = '\n'
 toChar _  = 'a'
 
 bs : (n : Nat) -> ByteVect (S n)
-bs n = generate (S n) $ \case (Element x _) => if x == n then 10 else 0
+bs n = generate (S n) $ \x => if finToNat x == n then 10 else 0
 
 bl : (n : Nat) -> List Bits8
 bl n = unpack $ bs n
@@ -27,7 +28,7 @@ str n = pack $ map toChar (bl n)
 bs_lines : (n : Nat) -> ByteVect (S n)
 bs_lines n =
   generate (S n) $ \ix =>
-    case cast (fst ix) `mod` 100 of
+    case cast ix `mod` 100 of
       0 => 10
       _ => 0
 
@@ -38,7 +39,7 @@ string_lines : (n : Nat) -> String
 string_lines n = pack $ map toChar (list_lines n)
 
 bs_digits : (n : Nat) -> ByteVect (S n)
-bs_digits n = generate (S n) $ \x => 48 + (cast (fst x) `mod` 10)
+bs_digits n = generate (S n) $ \x => 48 + (cast (finToNat x) `mod` 10)
 
 list_digits : (n : Nat) -> List Bits8
 list_digits n = unpack $ bs_digits n
