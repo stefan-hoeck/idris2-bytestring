@@ -106,7 +106,7 @@ unsafeByteString n buf = BS n (BV (unsafeMakeBuffer buf) 0 reflexive)
 export
 toBuffer : ByteString -> IO Buffer
 toBuffer (BS n (BV b o lt)) =
-  create n $ \r,t => let t := copy b o 0 n r t in toIO r t
+  create n $ \r,t => let _ # t := copy b o 0 n r t in toIO r t
 
 --------------------------------------------------------------------------------
 --          Concatenating ByteStrings
@@ -125,9 +125,9 @@ copyMany :
   -> (r   : MBuffer n)
   -> {auto 0 p : Res r rs}
   -> F1' rs
-copyMany []                      pos r t = t
+copyMany []                      pos r t = () # t
 copyMany (BS k (BV b o lt):: xs) pos r t =
-  let t := copy b o pos k @{lt} @{rewrite sym prf in concatLemma1} r t
+  let _ # t := copy b o pos k @{lt} @{rewrite sym prf in concatLemma1} r t
    in copyMany xs (pos + k) @{concatLemma2 prf} r t
 
 ||| Concatenate a list of `ByteString`. This allocates
@@ -137,7 +137,7 @@ export
 fastConcat :  (bs : List ByteString) -> ByteString
 fastConcat bs =
   create (TotLength bs) $ \r,t =>
-    let t := copyMany bs 0 r t in freezeByteString r t
+    let _ # t := copyMany bs 0 r t in freezeByteString r t
 
 ||| Concatenates a list of bytestrings, separating them with the
 ||| given separator `sep`.
