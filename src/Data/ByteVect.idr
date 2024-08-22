@@ -167,8 +167,8 @@ export
 append : {m,n : _} -> ByteVect m -> ByteVect n -> ByteVect (m + n)
 append (BV src1 o1 lte1) (BV src2 o2 lte2) =
   let buf := create (m+n) $ \r,t =>
-              let t := copy {n = m+n} src1 o1 0 m @{lte1} @{lteAddRight _} r t
-                  t := copy src2 o2 m n @{lte2} @{reflexive} r t
+              let _ # t := copy {n = m+n} src1 o1 0 m @{lte1} @{lteAddRight _} r t
+                  _ # t := copy src2 o2 m n @{lte2} @{reflexive} r t
                in freeze r t
    in BV buf 0 reflexive
 
@@ -392,7 +392,7 @@ generateMaybe n f = create n (go n n)
     go (S k) (S m) r t =
       case f (ixToFin x) of
         Nothing => go k (S m) r t
-        Just v  => let t := setIx r m v t in go k m r t
+        Just v  => let _ # t := setIx r m v t in go k m r t
     go _ _ r t = freezeByteStringLTE (ixToNat y) @{ixLTE y} r t
 
 export
