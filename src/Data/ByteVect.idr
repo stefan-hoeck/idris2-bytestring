@@ -27,6 +27,11 @@ data ByteVect : Nat -> Type where
      -> (0 lte  : LTE (offset + len) bufLen)
      -> ByteVect len
 
+||| Wrappes an immutable buffer in a `ByteVect`
+export %inline
+fromIBuffer : IBuffer n -> ByteVect n
+fromIBuffer b = BV b 0 reflexive
+
 ||| An immutable string of raw bytes. For an length-indexed version,
 ||| see module `ByteVect` and `Data.ByteVect`.
 public export

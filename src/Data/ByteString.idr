@@ -108,6 +108,11 @@ toBuffer : ByteString -> IO Buffer
 toBuffer (BS n (BV b o lt)) =
   create n $ \r,t => let _ # t := copy b o 0 n r t in toIO r t
 
+||| Wrappes an immutable buffer in a `ByteString`
+export
+fromIBuffer : {n : _} -> IBuffer n -> ByteString
+fromIBuffer b = BS n $ fromIBuffer b
+
 --------------------------------------------------------------------------------
 --          Concatenating ByteStrings
 --------------------------------------------------------------------------------
