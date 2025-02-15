@@ -43,15 +43,15 @@ record ByteString where
 %inline
 conv : {n : _} -> R1 rs (IBuffer n) -@ R1 rs ByteString
 conv (v # t) = BS n (BV v 0 reflexive) # t
---
+
 ||| Safely wrap a mutable buffer in a `ByteString`.
 export
-freezeByteString : {n : _} -> FromMBuffer n ByteString
+freezeByteString : {n : _} -> WithMBuffer n ByteString
 freezeByteString r t = conv $ freeze r t
 
 ||| Safely wrap a mutable buffer in a `ByteString`.
 export
-freezeByteStringLTE : (m : Nat) -> (0 p : LTE m n) => FromMBuffer n ByteString
+freezeByteStringLTE : (m : Nat) -> (0 p : LTE m n) => WithMBuffer n ByteString
 freezeByteStringLTE m r t = conv $ freezeLTE @{p} r m t
 
 ||| Reads the value of a `ByteVect` at the given position
@@ -171,10 +171,10 @@ replicate n = generate n . const
 export
 append : {m,n : _} -> ByteVect m -> ByteVect n -> ByteVect (m + n)
 append (BV src1 o1 lte1) (BV src2 o2 lte2) =
-  let buf := create (m+n) $ \r,t =>
-              let _ # t := copy {n = m+n} src1 o1 0 m @{lte1} @{lteAddRight _} r t
-                  _ # t := copy src2 o2 m n @{lte2} @{reflexive} r t
-               in freeze r t
+  let buf := alloc (m+n) $ \r,t =>
+              let _ # t := icopy {n = m+n} src1 o1 0 m @{lte1} @{lteAddRight _} r t
+                  _ # t := icopy src2 o2 m n @{lte2} @{reflexive} r t
+               in unsafeFreeze r t
    in BV buf 0 reflexive
 
 ||| Prepend a single `Bits8` to a `ByteVect`. O(n).
@@ -390,10 +390,10 @@ substring start len (BV buf o p) =
 
 export
 generateMaybe : (n : Nat) -> (Fin n -> Maybe Bits8) -> ByteString
-generateMaybe n f = create n (go n n)
+generateMaybe n f = alloc n (go n n)
 
   where
-    go : (k,m : Nat) -> (x : Ix k n) => (y : Ix m n) => FromMBuffer n ByteString
+    go : (k,m : Nat) -> (x : Ix k n) => (y : Ix m n) => WithMBuffer n ByteString
     go (S k) (S m) r t =
       case f (ixToFin x) of
         Nothing => go k (S m) r t

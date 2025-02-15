@@ -106,7 +106,9 @@ unsafeByteString n buf = BS n (BV (unsafeMakeBuffer buf) 0 reflexive)
 export
 toBuffer : ByteString -> IO Buffer
 toBuffer (BS n (BV b o lt)) =
-  create n $ \r,t => let _ # t := copy b o 0 n r t in toIO r t
+  alloc n $ \r,t =>
+    let _ # t := icopy b o 0 n r t
+     in pure (unsafeFromMBuffer r) # t
 
 ||| Wrappes an immutable buffer in a `ByteString`
 export
@@ -127,12 +129,11 @@ copyMany :
      (ps  : List ByteString)
   -> (pos : Nat)
   -> {auto 0 prf : pos + TotLength ps === n}
-  -> (r   : MBuffer n)
-  -> {auto 0 p : Res r rs}
-  -> F1' rs
+  -> (r   : MBuffer s n)
+  -> F1' s
 copyMany []                      pos r t = () # t
 copyMany (BS k (BV b o lt):: xs) pos r t =
-  let _ # t := copy b o pos k @{lt} @{rewrite sym prf in concatLemma1} r t
+  let _ # t := icopy b o pos k @{lt} @{rewrite sym prf in concatLemma1} r t
    in copyMany xs (pos + k) @{concatLemma2 prf} r t
 
 ||| Concatenate a list of `ByteString`. This allocates
@@ -141,7 +142,7 @@ copyMany (BS k (BV b o lt):: xs) pos r t =
 export
 fastConcat :  (bs : List ByteString) -> ByteString
 fastConcat bs =
-  create (TotLength bs) $ \r,t =>
+  alloc (TotLength bs) $ \r,t =>
     let _ # t := copyMany bs 0 r t in freezeByteString r t
 
 ||| Concatenates a list of bytestrings, separating them with the
