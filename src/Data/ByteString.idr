@@ -6,6 +6,7 @@ import Data.Buffer.Mutable
 import Data.List
 import Data.Maybe0
 import Data.Nat.BSExtra
+import Data.String
 
 import System.File
 
@@ -84,6 +85,30 @@ Ord ByteString where
 export
 FromString ByteString where
   fromString s = BS _ $ fromString s
+
+export %inline
+Cast String ByteString where
+  cast = fromString
+
+export %inline
+Cast (List Bits8) ByteString where
+  cast = pack
+
+export %inline
+Cast Bits8 ByteString where
+  cast = singleton
+
+export %inline
+Cast Char ByteString where
+  cast = cast {from = String} . singleton
+
+export %inline
+{n : _} -> Cast (ByteVect n) ByteString where
+  cast = BS n
+
+export %inline
+{n : _} -> Cast (IBuffer n) ByteString where
+  cast = cast . fromIBuffer
 
 --------------------------------------------------------------------------------
 --          Core Functionality
