@@ -49,10 +49,26 @@ export
 freezeByteString : {n : _} -> WithMBuffer n ByteString
 freezeByteString r t = conv $ freeze r t
 
+||| Wrap a mutable buffer in a `ByteString` without copying.
+|||
+||| Use this for reasons of efficiency when you are sure the buffer
+||| will not be shared otherwise.
+export
+unsafeFreezeByteString : {n : _} -> WithMBuffer n ByteString
+unsafeFreezeByteString r t = conv $ unsafeFreeze r t
+
 ||| Safely wrap a mutable buffer in a `ByteString`.
 export
 freezeByteStringLTE : (m : Nat) -> (0 p : LTE m n) => WithMBuffer n ByteString
 freezeByteStringLTE m r t = conv $ freezeLTE @{p} r m t
+
+||| Wrap a mutable buffer in a `ByteString` without copying.
+|||
+||| Use this for reasons of efficiency when you are sure the buffer
+||| will not be shared otherwise.
+export
+unsafeFreezeByteStringLTE : (m : Nat) -> (0 p : LTE m n) => WithMBuffer n ByteString
+unsafeFreezeByteStringLTE m r t = conv $ unsafeFreezeLTE @{p} r m t
 
 ||| Reads the value of a `ByteVect` at the given position
 export %inline
@@ -398,7 +414,7 @@ generateMaybe n f = alloc n (go n n)
       case f (ixToFin x) of
         Nothing => go k (S m) r t
         Just v  => let _ # t := setIx r m v t in go k m r t
-    go _ _ r t = freezeByteStringLTE (ixToNat y) @{ixLTE y} r t
+    go _ _ r t = unsafeFreezeByteStringLTE (ixToNat y) @{ixLTE y} r t
 
 export
 mapMaybe : {n : _} -> (Bits8 -> Maybe Bits8) -> ByteVect n -> ByteString
