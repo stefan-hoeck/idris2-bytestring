@@ -168,7 +168,7 @@ export
 fastConcat :  (bs : List ByteString) -> ByteString
 fastConcat bs =
   alloc (TotLength bs) $ \r,t =>
-    let _ # t := copyMany bs 0 r t in freezeByteString r t
+    let _ # t := copyMany bs 0 r t in unsafeFreezeByteString r t
 
 ||| Concatenates a list of bytestrings, separating them with the
 ||| given separator `sep`.
