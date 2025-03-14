@@ -23,5 +23,5 @@ ipkg   = "ref1.ipkg"
 [custom.all.array]
 type   = "github"
 url    = "https://github.com/stefan-hoeck/idris2-array"
-commit = "latest:main"
+commit = "latest:nat_ffi"
 ipkg   = "array.ipkg"

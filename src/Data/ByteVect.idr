@@ -73,8 +73,7 @@ unsafeFreezeByteStringLTE m r t = conv $ unsafeFreezeLTE @{p} r m t
 ||| Reads the value of a `ByteVect` at the given position
 export %inline
 at : ByteVect n -> Fin n -> Bits8
-at (BV buf o lte) x =
-  atNat buf (o + finToNat x) @{transitive (ltPlusRight $ finToNatLT x) lte}
+at (BV buf o lte) x = atOffset buf x o
 
 ||| Safely access a value in an array at position `n - m`.
 export %inline
