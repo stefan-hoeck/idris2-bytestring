@@ -403,6 +403,29 @@ substring :
 substring start len (BV buf o p) =
   BV buf (o + start) (substrPrf inBounds p)
 
+||| Like `substring` but extracts a substring from position
+||| `from` up to but not including position `till`.
+export
+substringFromTill :
+     (from, till : Nat)
+  -> {auto 0 lt1 : LTE from till}
+  -> {auto 0 lt2 : LTE till n}
+  -> ByteVect n
+  -> ByteVect (till `minus` from)
+substringFromTill f t bv =
+  substring f (t `minus` f) bv @{transitive (plusMinusLTE _ _ lt1) lt2}
+
+||| Like `substring` but extracts a substring from position
+||| `from` up to and including position `to`.
+export
+substringFromTo :
+     (from, to : Nat)
+  -> {auto 0 lte : LTE from to}
+  -> {auto 0 lt  : LT to n}
+  -> ByteVect n
+  -> ByteVect (S to `minus` from)
+substringFromTo f t bv = substringFromTill f (S t) bv
+
 export
 generateMaybe : (n : Nat) -> (Fin n -> Maybe Bits8) -> ByteString
 generateMaybe n f = alloc n (go n n)
