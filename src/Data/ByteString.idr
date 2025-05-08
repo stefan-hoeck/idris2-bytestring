@@ -166,7 +166,9 @@ copyMany (BS k (BV b o lt):: xs) pos r t =
 ||| faster than `concat`, or `concatMap` for large `ByteString`s.
 export
 fastConcat :  (bs : List ByteString) -> ByteString
-fastConcat bs =
+fastConcat []  = empty
+fastConcat [b] = b
+fastConcat bs  =
   alloc (TotLength bs) $ \r,t =>
     let _ # t := copyMany bs 0 r t in unsafeFreezeByteString r t
 
