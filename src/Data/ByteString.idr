@@ -166,7 +166,9 @@ copyMany (BS k (BV b o lt):: xs) pos r t =
 ||| faster than `concat`, or `concatMap` for large `ByteString`s.
 export
 fastConcat :  (bs : List ByteString) -> ByteString
-fastConcat bs =
+fastConcat []  = empty
+fastConcat [b] = b
+fastConcat bs  =
   alloc (TotLength bs) $ \r,t =>
     let _ # t := copyMany bs 0 r t in unsafeFreezeByteString r t
 
@@ -189,7 +191,7 @@ unixUnlines : List ByteString -> ByteString
 unixUnlines = concatSep1 0x0A
 
 ||| Concatenate two `ByteString`s. O(n + m).
-export %inline
+export
 append : ByteString -> ByteString -> ByteString
 append (BS 0 _)   b2         = b2
 append b1         (BS 0 _)   = b1
