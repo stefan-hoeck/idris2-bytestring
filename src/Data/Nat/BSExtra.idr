@@ -9,11 +9,6 @@ import Data.Nat
 %default total
 
 export
-0 eqLTE : (m,n : Nat) -> m === n -> LTE m n
-eqLTE 0     0     Refl = LTEZero
-eqLTE (S k) (S k) Refl = LTESucc $ eqLTE k k Refl
-
-export
 0 ltPlusRight : {k,m,n : Nat} -> LT m n -> LT (k + m) (k + n)
 ltPlusRight {k = 0}   x = x
 ltPlusRight {k = S _} x = LTESucc $ ltPlusRight x
@@ -32,13 +27,6 @@ export
 ltPlusSuccRight' 0     p           = p
 ltPlusSuccRight' (S x) (LTESucc p) =
   lteSuccRight $ ltPlusSuccRight' x p
-
-export
-0 plusMinus : (m,n : Nat) -> LTE m n -> m + (n `minus` m) === n
-plusMinus 0 0         _           = Refl
-plusMinus 0 (S k)     x           = Refl
-plusMinus (S k) (S j) (LTESucc p) = cong S $ plusMinus k j p
-plusMinus (S k) 0     x impossible
 
 export
 0 plusMinusLTE : (m,n : Nat) -> LTE m n -> LTE (m + (n `minus` m)) n
