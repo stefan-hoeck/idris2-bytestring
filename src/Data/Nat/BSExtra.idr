@@ -29,10 +29,6 @@ ltPlusSuccRight' (S x) (LTESucc p) =
   lteSuccRight $ ltPlusSuccRight' x p
 
 export
-0 plusMinusLTE : (m,n : Nat) -> LTE m n -> LTE (m + (n `minus` m)) n
-plusMinusLTE m n lte = eqLTE _ _ $ plusMinus m n lte
-
-export
 0 plusMinus' : (m,n : Nat) -> LTE m n -> (n `minus` m) + m === n
 plusMinus' m n lt = trans (plusCommutative (n `minus` m) m) (plusMinus m n lt)
 
