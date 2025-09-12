@@ -215,6 +215,14 @@ export %inline
 Monoid ByteString where
   neutral = empty
 
+export
+padLeft : Nat -> Bits8 -> ByteString -> ByteString
+padLeft n b bs = replicate (n `minus` bs.size) b <+> bs
+
+export
+padRight : Nat -> Bits8 -> ByteString -> ByteString
+padRight n b bs = bs <+> replicate (n `minus` bs.size) b
+
 --------------------------------------------------------------------------------
 --          Inspecting ByteStrings
 --------------------------------------------------------------------------------
