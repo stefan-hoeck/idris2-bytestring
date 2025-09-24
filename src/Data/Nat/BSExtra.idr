@@ -1,10 +1,7 @@
 ||| This contains additional proofs on natural number.
 module Data.Nat.BSExtra
 
-import Data.Array.Index
-import Data.Fin
-import Data.Maybe0
-import Data.Nat
+import public Data.Array.Index
 
 %default total
 
@@ -40,17 +37,6 @@ lteAddLeft (S k) y = lteSuccRight $ lteAddLeft k y
 export
 0 lteAddRight : (x : Nat) -> LTE m n -> LTE m (n + x)
 lteAddRight x lt = rewrite plusCommutative n x in lteAddLeft x lt
-
-export
-tryLT : {n : _} -> (k : Nat) -> Maybe0 (LT k n)
-tryLT k with (k < n) proof eq
-  _ | True  = Just0 $ ltOpReflectsLT k n eq
-  _ | False = Nothing0
-
-export
-tryLTE : {n : _} -> (k : Nat) -> Maybe0 (LTE k n)
-tryLTE 0     = Just0 %search
-tryLTE (S k) = tryLT k
 
 export
 0 concatLemma1 : {0 k,m,n : Nat} -> LTE (k + m) (k + (m+n))
