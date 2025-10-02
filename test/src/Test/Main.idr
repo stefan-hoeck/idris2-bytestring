@@ -272,6 +272,11 @@ prop_split = property $ do
   let bs := concatSep1 b bss
   bs === concatSep1 b (split b bs)
 
+prop_splitNonEmpty : Property
+prop_splitNonEmpty = property $ do
+  [b,bs] <- forAll $ np [byte,bytestring]
+  assert $ all ((> 0) . size) (splitNonEmpty b bs)
+
 prop_splitAtSubstring : Property
 prop_splitAtSubstring = property $ do
   [bss,b] <- forAll $ np [list (linear 0 30) bytestring, bytestring]
@@ -347,6 +352,7 @@ main = test . pure $ MkGroup "ByteString"
   , ("prop_suffix", prop_suffix)
   , ("prop_unlines", prop_unlines)
   , ("prop_split", prop_split)
+  , ("prop_splitNonEmpty", prop_splitNonEmpty)
   , ("prop_splitAtSubstring", prop_splitAtSubstring)
   , ("prop_parseDecimalNat", prop_parseDecimalNat)
   , ("prop_parseInteger", prop_parseInteger)

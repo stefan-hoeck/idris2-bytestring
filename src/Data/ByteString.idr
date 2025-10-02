@@ -487,6 +487,11 @@ export
 splitWith : (Bits8 -> Bool) -> ByteString -> List ByteString
 splitWith p (BS n bs) = splitWith p bs
 
+||| Like `splitWith`, but removes empty components.
+export %inline
+splitWithNonEmpty : (Bits8 -> Bool) -> ByteString -> List ByteString
+splitWithNonEmpty p = filter (not . null) . splitWith p
+
 ||| Break a `ByteString` into pieces separated by the byte
 ||| argument, consuming the delimiter.
 |||
@@ -496,6 +501,11 @@ splitWith p (BS n bs) = splitWith p bs
 export %inline
 split : Bits8 -> ByteString -> List ByteString
 split b = splitWith (b ==)
+
+||| Like `splitWith`, but removes empty components.
+export %inline
+splitNonEmpty : Bits8 -> ByteString -> List ByteString
+splitNonEmpty p = filter (not . null) . split p
 
 ||| Returns the longest (possibly empty) prefix of a
 ||| bytestring that does not contain the given substring

@@ -636,6 +636,11 @@ splitWith p bs = go Lin n bs (sizeAccessible n)
       MkBreakRes l1 (S l2) b1 b2 p =>
         go (sb :< BS l1 b1) l2 (tail b2) (rec l2 $ ltPlusSuccRight' _ p)
 
+||| Like `splitWith`, but removes empty components.
+export
+splitWithNonEmpty : {n : _} -> (Bits8 -> Bool) -> ByteVect n -> List ByteString
+splitWithNonEmpty p = filter ((/= Z) . size) . splitWith p
+
 ||| Break a `ByteVect` into pieces separated by the byte
 ||| argument, consuming the delimiter.
 |||
@@ -645,6 +650,11 @@ splitWith p bs = go Lin n bs (sizeAccessible n)
 export %inline
 split : {n : _} -> Bits8 -> ByteVect n -> List ByteString
 split b = splitWith (b ==)
+
+||| Like `split`, but removes empty components.
+export
+splitNonEmpty : {n : _} -> Bits8 -> ByteVect n -> List ByteString
+splitNonEmpty p = filter ((/= Z) . size) . split p
 
 export
 lines : {n : _} -> ByteVect n -> List ByteString
