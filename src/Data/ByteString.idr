@@ -516,6 +516,12 @@ breakAtSubstring (BS _ s) (BS _ v) =
   let MkBreakRes _ _ x y _ := breakAtSubstring s v
    in (BS _ x, BS _ y)
 
+||| Like `breakAtSubstring` but removes the
+||| substring from the remainder
+export
+breakDropAtSubstring : (pat,target : ByteString) -> (ByteString,ByteString)
+breakDropAtSubstring pat = map (drop $ size pat) . breakAtSubstring pat
+
 ||| Splits the second bytestring whenever the first called
 ||| `sep` occurs.
 |||
@@ -532,6 +538,110 @@ splitAtSubstring (BS _ s) (BS _ v) = splitAtSubstring s v
 export %inline
 unixLines : ByteString -> List ByteString
 unixLines (BS _ bv) = lines bv
+
+--------------------------------------------------------------------------------
+--          (Replacing) Substrings
+--------------------------------------------------------------------------------
+
+||| Extracts the string encountered between `start` and `end`
+||| returning a triple containing the prefix, string in the middle,
+||| and suffix.
+|||
+||| Note: The `start` and `end` tag will *not*
+|||       be included in the resulting triple.
+|||
+||| Returns `Nothing` in case the prefix or suffix was the empty string.
+||| In particular, this will return `Nothing` in case `start` or `end`
+||| is the empty string.
+export
+breakAround :
+     (start,end,target : ByteString)
+  -> Maybe (ByteString,ByteString,ByteString)
+breakAround s e t =
+  if s.size == 0 || e.size == 0 then Nothing else
+    case breakAtSubstring s t of
+      (_,BS 0 _) => Nothing
+      (pre,suf)  => case breakAtSubstring e (drop s.size suf) of
+        (_,BS 0 _) => Nothing
+        (mid,end)  => Just (pre,mid, drop e.size end)
+
+||| Extracts the string encountered between `start` and `end`.
+|||
+||| This will look for the *first* occurrence of `start` and
+||| will take everything until (but not including) the *first*
+||| occurrence of `end` after `start`.
+|||
+||| Returns `Nothing` if `end` or `start` is the empty string or
+||| either of the two was not found.
+export %inline
+between : (start,end,target : ByteString) -> Maybe ByteString
+between s e = map (fst . snd) . breakAround s e
+
+||| Returns the given byte string wrapped in a `Just` if and only if
+||| it is non-empty.
+export
+nonEmpty : ByteString -> Maybe ByteString
+nonEmpty (BS 0 _) = Nothing
+nonEmpty bs       = Just bs
+
+||| Extracts *all* occurrences of strings encountered between
+||| the given `start` and `end` tags.
+|||
+||| Returns an empty list if the start or end tag is the empty
+||| bytestring.
+export
+manyBetween : (start,end : ByteString) -> ByteString -> List ByteString
+manyBetween s e = go [<]
+  where
+    go : SnocList ByteString -> ByteString -> List ByteString
+    go sb bs =
+      case breakAround s e bs of
+        Just (x,y,z) => go (sb:<y) (assert_smaller bs z)
+        Nothing      => sb <>> []
+
+||| Like `between` but returns `Nothing` in case the resulting
+||| bytestring would be empty.
+export %inline
+betweenNonEmpty : (start,end,target : ByteString) -> Maybe ByteString
+betweenNonEmpty s e t = between s e t >>= nonEmpty
+
+||| Replaces the first byte sequence in the target string
+||| found between the given `start` and `end` tag by
+||| applying the given function.
+|||
+||| In case `start` or `end` is the empty string, this will return
+||| the unmodified bytestring.
+export
+modBetween :
+     (start,end : ByteString)
+  -> (f         : ByteString -> ByteString)
+  -> (target    : ByteString)
+  -> ByteString
+modBetween s e f t =
+  case breakAround s e t of
+    Just (x,y,z) => fastConcat [x,s,f y,e,z]
+    Nothing      => t
+
+||| Replaces all byte sequences in the target string
+||| found between the given `start` and `end` tag by
+||| applying the given function to each of them.
+|||
+||| In case `start` or `end` is the empty string, this will return
+||| the unmodified bytestring.
+export
+modBetweenAll :
+     (start,end : ByteString)
+  -> (f         : ByteString -> ByteString)
+  -> (target    : ByteString)
+  -> ByteString
+modBetweenAll s e f = go [<]
+
+  where
+    go : SnocList ByteString -> ByteString -> ByteString
+    go sb bs =
+      case breakAround s e bs of
+        Just (x,y,z) => go (sb:<x:<s:<f y:<e) (assert_smaller bs z)
+        Nothing      => fastConcat (sb <>> [bs])
 
 --------------------------------------------------------------------------------
 --          Parsing Numbers
