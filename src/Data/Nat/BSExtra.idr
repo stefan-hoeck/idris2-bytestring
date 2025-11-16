@@ -55,4 +55,4 @@ export
 minusLT 0     (S l) lt           = lteMinus l
 minusLT (S k) (S l) (LTESucc lt) =
   let lt' := minusLT k l lt in lteSuccRight lt'
-minusLT 0     0     lt impossible
+minusLT Z     Z     lt impossible
