@@ -1,5 +1,6 @@
 module Test.Main
 
+import Data.List.Quantifiers
 import Data.Buffer.Indexed
 import Data.Byte
 import Data.ByteString as BS
@@ -42,6 +43,15 @@ digit1 = bits8 $ linear (byte_0 + 1) byte_9
 
 natString : Gen (List Bits8)
 natString = [| digit1 :: list (linear 0 20) digit |]
+
+start : Gen ByteString
+start = (singleton 0 <+>) <$> bytestring
+
+end : Gen ByteString
+end = (<+> singleton 0) <$> bytestring
+
+middle : Gen ByteString
+middle = pack <$> list (linear 0 20) (bits8 $ linear 1 0xff)
 
 intString : Gen (List Bits8)
 intString =
@@ -316,6 +326,40 @@ prop_parseDouble = property $ do
   footnote "my: \{show my}"
   doubleEq mx my === True
 
+prop_between : Property
+prop_between = property $ do
+  [x1,x2,x3,x4,x5] <- forAll $ hlist [middle,start,middle,end,middle]
+  Just x3 === between x2 x4 (fastConcat [x1,x2,x3,x4,x5])
+
+prop_manyBetween : Property
+prop_manyBetween = property $ do
+  [x1,x2,x3,x4,x5] <- forAll $ hlist [middle,middle,middle,middle,middle]
+  let z   := singleton 0
+      inp := fastConcat (intersperse z [x1,x2,x3,x4,x5])
+  footnote (show inp)
+  [x2,x4] === manyBetween z z inp
+
+prop_breakAround : Property
+prop_breakAround = property $ do
+  [x1,x2,x3,x4,x5] <- forAll $ hlist [middle,start,middle,end,middle]
+  Just (x1, x3, x5) === breakAround x2 x4 (fastConcat [x1,x2,x3,x4,x5])
+
+prop_modBetween : Property
+prop_modBetween = property $ do
+  [x1,x2,x3,x4,x5] <- forAll $ hlist [middle,start,middle,end,middle]
+  let inp := fastConcat [x1,x2,x3,x4,x5]
+      res := fastConcat [x1,x2,reverse x3,x4,x5]
+  res === modBetween x2 x4 reverse inp
+
+prop_modBetweenAll : Property
+prop_modBetweenAll = property $ do
+  [x1,x2,x3,x4,x5] <- forAll $ hlist [middle,middle,middle,middle,middle]
+  let z   := singleton 0
+      inp := fastConcat (intersperse z [x1,x2,x3,x4,x5])
+      res := fastConcat (intersperse z [x1,reverse x2,x3,reverse x4,x5])
+  footnote (show inp)
+  res === modBetweenAll z z reverse inp
+
 main : IO ()
 main = test . pure $ MkGroup "ByteString"
   [ ("unpackPack", unpackPack)
@@ -357,4 +401,9 @@ main = test . pure $ MkGroup "ByteString"
   , ("prop_parseDecimalNat", prop_parseDecimalNat)
   , ("prop_parseInteger", prop_parseInteger)
   , ("prop_parseDouble", prop_parseDouble)
+  , ("prop_between", prop_between)
+  , ("prop_breakAround", prop_breakAround)
+  , ("prop_modBetween", prop_modBetween)
+  , ("prop_manyBetween", prop_manyBetween)
+  , ("prop_modBetweenAll", prop_modBetweenAll)
   ]
