@@ -687,8 +687,8 @@ parseDouble (BS _ bv) = parseDouble bv
 --------------------------------------------------------------------------------
 
 export
-readBytesString :  HasIO io => Nat -> File -> io (Either FileError ByteString)
-readBytesString max f = do
+readByteString : HasIO io => Nat -> File -> io (Either FileError ByteString)
+readByteString max f = do
   Right (n ** ib) <- readIBuffer max f | Left x => pure (Left x)
   pure . Right $ BS n (BV ib 0 reflexive)
 
