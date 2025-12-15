@@ -115,6 +115,9 @@ export
 toString : {n : _} -> ByteVect n -> String
 toString (BV buf o _) = toString buf o n
 
+export %inline
+{n : _} -> Interpolation (ByteVect n) where interpolate = toString
+
 ||| Creates a `ByteVect` holding a single `Bits8` value.
 export %inline
 singleton : Bits8 -> ByteVect 1
