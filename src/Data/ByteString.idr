@@ -67,6 +67,9 @@ export
 toString : ByteString -> String
 toString (BS _ bs) = toString bs
 
+export %inline
+Interpolation ByteString where interpolate = toString
+
 ||| Converts a `ByteString` to a String. All characters
 ||| will be in the range [0,255], so this does not perform
 ||| any character decoding.
