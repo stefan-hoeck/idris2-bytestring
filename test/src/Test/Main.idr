@@ -1,6 +1,7 @@
 module Test.Main
 
 import Data.List.Quantifiers
+import Data.Buffer.Builder
 import Data.Buffer.Indexed
 import Data.Byte
 import Data.ByteString as BS
@@ -359,6 +360,18 @@ prop_modBetweenAll = property $ do
       res := fastConcat (intersperse z [x1,reverse x2,x3,reverse x4,x5])
   footnote (show inp)
   res === modBetweenAll z z reverse inp
+
+builderConcat : List ByteString -> ByteString
+builderConcat bss = withBuilder (go bss)
+  where
+    go : Builder q => List ByteString -> F1 q ByteString
+    go []        t = getByteString t
+    go (bs::bss) t = let _  # t := putByteString bs t in go bss t
+
+prop_putByteString : Property
+prop_putByteString = property $ do
+  bss <- forAll $ list (linear 0 30) bytestring
+  builderConcat bss === fastConcat bss
 
 main : IO ()
 main = test . pure $ MkGroup "ByteString"

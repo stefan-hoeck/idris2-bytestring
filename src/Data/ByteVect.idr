@@ -3,6 +3,7 @@ module Data.ByteVect
 import Data.Maybe0
 import Control.WellFounded
 import Data.Buffer
+import Data.Buffer.Builder
 import Data.Buffer.Mutable
 import Data.Nat.BSExtra
 
@@ -837,3 +838,11 @@ parseDouble {n = S _} bv = case head bv of
   43 => parsePosDbl (tail bv)             -- '+'
   45 => negate  <$> parsePosDbl (tail bv) -- '-'
   _  => parsePosDbl bv
+
+--------------------------------------------------------------------------------
+-- Using Builders
+--------------------------------------------------------------------------------
+
+export %inline
+putByteVect : Builder q => {n : _} -> ByteVect n -> F1' q
+putByteVect (BV buf off _) = putBytesFrom off n buf
