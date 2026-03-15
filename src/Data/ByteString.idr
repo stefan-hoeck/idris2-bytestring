@@ -2,6 +2,7 @@
 module Data.ByteString
 
 import Data.Buffer
+import Data.Buffer.Builder
 import Data.Buffer.Mutable
 import Data.List
 import Data.Maybe0
@@ -112,6 +113,10 @@ export %inline
 export %inline
 {n : _} -> Cast (IBuffer n) ByteString where
   cast = cast . fromIBuffer
+
+export %inline
+Cast AnyBuffer ByteString where
+  cast (AB _ ib) = cast ib
 
 --------------------------------------------------------------------------------
 --          Core Functionality
@@ -711,3 +716,15 @@ writeByteString :
   -> ByteString
   -> io (Either (FileError,Int) ())
 writeByteString h (BS n bs) = writeByteVect h bs
+
+--------------------------------------------------------------------------------
+-- Using Builders
+--------------------------------------------------------------------------------
+
+export %inline
+putByteString : Builder q => ByteString -> F1' q
+putByteString (BS _ bv) = putByteVect bv
+
+export %inline
+getByteString : Builder q => F1 q ByteString
+getByteString t = let ab # t := getBytes t in cast ab # t
