@@ -33,6 +33,20 @@ export %inline
 fromIBuffer : IBuffer n -> ByteVect n
 fromIBuffer b = BV b 0 reflexive
 
+||| Converts a `ByteVect n` to an `IBuffer n`.
+|||
+||| In case the `ByteVect`'s inner offset is at zero, this just
+||| unwraps and returns then inner buffer (O(1)), otherwise the buffer's
+||| substring is copied to a new buffer (O(n)).
+export
+toIBuffer : {n : _} -> ByteVect n -> IBuffer n
+toIBuffer (BV b 0 _) = take n b
+toIBuffer (BV b o _) =
+  run1 $ \t =>
+   let mb # t := mbuffer1 n t
+       _  # t := icopy b o 0 n mb t
+    in unsafeFreeze mb t
+
 ||| An immutable string of raw bytes. For an length-indexed version,
 ||| see module `ByteVect` and `Data.ByteVect`.
 public export
@@ -169,6 +183,12 @@ hcomp b1 b2 = go m n
 export
 heq : {m,n : Nat} -> ByteVect m -> ByteVect n -> Bool
 heq bs1 bs2 = hcomp bs1 bs2 == EQ
+
+export %inline
+{n : _} -> Eq (ByteVect n) where (==) = heq
+
+export %inline
+{n : _} -> Ord (ByteVect n) where compare = hcomp
 
 --------------------------------------------------------------------------------
 --          Core Functionality

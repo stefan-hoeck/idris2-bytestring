@@ -187,6 +187,11 @@ prop_substring = property $ do
   the ByteString (fromString (substr (cast start) (cast len) str)) ===
   substring start len (fromString str)
 
+prop_toIBuffer : Property
+prop_toIBuffer = property $ do
+  BS n bv <- forAll bytestring
+  fromIBuffer (toIBuffer bv) === bv
+
 reverseReverse : Property
 reverseReverse = property $ do
   bs <- forAll bytestring
@@ -419,4 +424,5 @@ main = test . pure $ MkGroup "ByteString"
   , ("prop_modBetween", prop_modBetween)
   , ("prop_manyBetween", prop_manyBetween)
   , ("prop_modBetweenAll", prop_modBetweenAll)
+  , ("prop_toIBuffer", prop_toIBuffer)
   ]
